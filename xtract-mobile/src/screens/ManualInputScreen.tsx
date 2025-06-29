@@ -12,7 +12,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Input } from '../components';
 import { colors, transparentColors } from '../styles/colors';
-import { ProcessingService } from '../services/supabase';
+import { BackendService } from '../services/supabase';
 import { ShareMenuService } from '../services/shareMenu';
 
 interface ManualInputScreenProps {
@@ -48,11 +48,17 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
 
     setLoading(true);
     try {
-      await ProcessingService.createProcessingJob(user.id, url.trim());
+      console.log('Processing video URL:', url.trim());
+      console.log('User ID:', user.id);
+      
+      // Call the Railway backend to process the video
+      const result = await BackendService.processVideoUrl(url.trim(), user.id);
+      
+      console.log('Backend processing result:', result);
 
       Alert.alert(
         'Success',
-        'Video processing started! You\'ll be notified when it\'s ready.',
+        'Video processing completed! Check your audio files.',
         [
           {
             text: 'OK',
@@ -62,7 +68,8 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
       );
     } catch (error) {
       console.error('Error processing video:', error);
-      Alert.alert('Error', 'Failed to start processing. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      Alert.alert('Error', `Failed to process video: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -104,9 +111,6 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
                   multiline
                   numberOfLines={3}
                   style={styles.urlInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
                 />
                 
                 <Button

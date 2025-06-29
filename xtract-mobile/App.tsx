@@ -18,6 +18,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { AudioPlayerScreen } from './src/screens/AudioPlayerScreen';
 import { RootStackParamList, User } from './src/types';
 import { AuthService } from './src/services/supabase';
+import { URLSchemeService } from './src/services/urlScheme';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -147,6 +148,15 @@ const SettingsScreenWrapper: React.FC<any> = (props) => (
 );
 
 function App(): React.JSX.Element {
+  useEffect(() => {
+    // Initialize URL scheme handling
+    const subscription = URLSchemeService.initialize();
+    
+    return () => {
+      subscription?.remove();
+    };
+  }, []);
+
   return (
     <SafeAreaProvider>
       <NavigationContainer>

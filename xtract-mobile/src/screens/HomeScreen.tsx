@@ -14,8 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Waveform } from '../components';
 import { colors, transparentColors } from '../styles/colors';
 import { globalStyles } from '../styles/globalStyles';
-import { AudioService, ProcessingService } from '../services/supabase';
+import { AudioService, ProcessingService, BackendService } from '../services/supabase';
 import { URLSchemeService } from '../services/urlScheme';
+import { ShareMenuService } from '../services/shareMenu';
 import { AudioFile, ProcessingJob } from '../types';
 
 const { width } = Dimensions.get('window');
@@ -35,7 +36,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     loadData();
     setupURLSchemeListener();
     setupProcessingSubscription();
+    checkForSharedData(); // Check for shared URLs when component mounts
   }, []);
+
+  const checkForSharedData = async () => {
+    try {
+      const sharedData = await ShareMenuService.getSharedData();
+      
+      if (sharedData && sharedData.type === 'url') {
+        console.log('Found shared URL:', sharedData.data);
+        
+        // Validate that it's a video URL
+        if (ShareMenuService.isValidVideoUrl(sharedData.data)) {
+          handleSharedURL(sharedData.data);
+        } else {
+          Alert.alert('Invalid URL', 'Please share a valid video URL from Instagram, TikTok, or YouTube.');
+        }
+        
+        // Clear the shared data after handling
+        ShareMenuService.clearSharedData();
+      }
+    } catch (error) {
+      console.error('Error checking shared data:', error);
+    }
+  };
 
   const setupURLSchemeListener = () => {
     const removeListener = URLSchemeService.addListener((url) => {
@@ -82,13 +106,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
 
   const processVideo = async (url: string) => {
     try {
-      const job = await ProcessingService.createProcessingJob(user.id, url);
-
-      Alert.alert('Success', 'Video processing started! You\'ll be notified when it\'s ready.');
-      loadData();
+      console.log('Processing video URL:', url);
+      console.log('User ID:', user.id);
+      
+      // Call the Railway backend to process the video
+      const result = await BackendService.processVideoUrl(url, user.id);
+      
+      console.log('Backend processing result:', result);
+      
+      Alert.alert('Success', 'Video processing completed! Check your audio files.');
+      loadData(); // Refresh the data to show new audio file
     } catch (error) {
       console.error('Error processing video:', error);
-      Alert.alert('Error', 'Failed to start processing. Please try again.');
+      Alert.alert('Error', `Failed to process video: ${error.message}`);
     }
   };
 
@@ -137,7 +167,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
           <Text style={styles.jobStatus}>{job.status}</Text>
         </View>
         <Text style={styles.jobUrl} numberOfLines={2}>
-          {job.video_url}
+          {job.original_url}
         </Text>
         {job.status === 'processing' && (
           <View style={styles.waveformContainer}>

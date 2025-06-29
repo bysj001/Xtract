@@ -153,8 +153,9 @@ export class ProcessingService {
 }
 
 export class BackendService {
-  // Railway backend URL - replace with your actual Railway deployment URL
-  private static BACKEND_URL = 'https://your-railway-app.railway.app';
+  // Railway deployment URL 
+  // Project: https://railway.com/project/4464aee6-e98c-44a6-bd82-20efc0044ebc
+  private static BACKEND_URL = 'https://xtract-production.up.railway.app';
 
   static async processVideoUrl(url: string, userId: string): Promise<{ jobId: string; audioFileId?: string }> {
     try {
