@@ -112,27 +112,50 @@ async def download_video(url: str, session_dir: str) -> str:
     """Download video using yt-dlp"""
     video_path_template = os.path.join(session_dir, 'video.%(ext)s')
     
-    ydl_opts = {
-        'outtmpl': video_path_template,
-        'format': 'bestaudio+bestvideo/best',
-        'quiet': True,
-        'merge_output_format': 'mp4',
-    }
+    # Try multiple format strategies for better compatibility
+    format_strategies = [
+        # Strategy 1: Best single format (no merging required)
+        'best[ext=mp4]/best',
+        # Strategy 2: Best video + best audio (requires ffmpeg)
+        'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
+        # Strategy 3: Fallback to any best format
+        'best'
+    ]
     
-    try:
-        # Run yt-dlp in executor to avoid blocking
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, _download_with_ytdlp, url, ydl_opts)
+    for i, format_str in enumerate(format_strategies):
+        ydl_opts = {
+            'outtmpl': video_path_template,
+            'format': format_str,
+            'quiet': True,
+            'no_warnings': True,
+        }
         
-        # Find the downloaded video file
-        for file in os.listdir(session_dir):
-            if file.endswith((".mp4", ".mkv", ".webm")):
-                return os.path.join(session_dir, file)
+        # Only add merge format for strategies that might need it
+        if 'bestvideo+bestaudio' in format_str:
+            ydl_opts['merge_output_format'] = 'mp4'
         
-        raise Exception("No video file found after yt-dlp download")
-        
-    except Exception as e:
-        raise Exception(f"yt-dlp failed: {e}")
+        try:
+            print(f"[INFO] Trying download strategy {i+1}: {format_str}")
+            
+            # Run yt-dlp in executor to avoid blocking
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, _download_with_ytdlp, url, ydl_opts)
+            
+            # Find the downloaded video file
+            for file in os.listdir(session_dir):
+                if file.endswith((".mp4", ".mkv", ".webm", ".m4a", ".mp3")):
+                    file_path = os.path.join(session_dir, file)
+                    print(f"[INFO] Successfully downloaded: {file}")
+                    return file_path
+            
+        except Exception as e:
+            print(f"[WARNING] Strategy {i+1} failed: {e}")
+            if i == len(format_strategies) - 1:
+                # This was the last strategy, re-raise the error
+                raise Exception(f"All download strategies failed. Last error: {e}")
+            continue
+    
+    raise Exception("No video file found after trying all download strategies")
 
 def _download_with_ytdlp(url: str, ydl_opts: dict):
     """Helper function to run yt-dlp synchronously"""
@@ -143,10 +166,23 @@ async def extract_audio_from_video(video_path: str, session_dir: str) -> str:
     """Extract audio from video using ffmpeg"""
     audio_output_path = os.path.join(session_dir, 'audio.mp3')
     
+    # Get file extension to determine if it's already audio-only
+    file_ext = os.path.splitext(video_path)[1].lower()
+    
+    # If it's already an audio file, just convert to MP3 if needed
+    if file_ext in ['.m4a', '.mp3', '.aac', '.ogg']:
+        print(f"[INFO] Input is audio file ({file_ext}), converting to MP3")
+        if file_ext == '.mp3':
+            # Already MP3, just copy it
+            import shutil
+            shutil.copy2(video_path, audio_output_path)
+            return audio_output_path
+    
+    # Build ffmpeg command
     cmd = [
         "ffmpeg",
         "-i", video_path,
-        "-vn",  # No video
+        "-vn",  # No video (skip video streams)
         "-acodec", "libmp3lame",
         "-q:a", "2",  # High quality audio
         "-y",  # Overwrite output file
@@ -154,25 +190,33 @@ async def extract_audio_from_video(video_path: str, session_dir: str) -> str:
     ]
     
     try:
+        print(f"[INFO] Extracting audio using ffmpeg: {' '.join(cmd)}")
+        
         # Run ffmpeg in executor to avoid blocking
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
+        result = await loop.run_in_executor(
             None, 
             lambda: subprocess.run(
                 cmd, 
                 check=True, 
-                stdout=subprocess.DEVNULL, 
-                stderr=subprocess.DEVNULL
+                capture_output=True,
+                text=True
             )
         )
         
         if not os.path.exists(audio_output_path):
             raise Exception("MP3 extraction failed - output file not created")
         
+        file_size = os.path.getsize(audio_output_path)
+        print(f"[INFO] Audio extraction successful, file size: {file_size} bytes")
+        
         return audio_output_path
         
     except subprocess.CalledProcessError as e:
-        raise Exception(f"FFmpeg failed: {e}")
+        error_msg = f"FFmpeg failed with return code {e.returncode}"
+        if e.stderr:
+            error_msg += f": {e.stderr}"
+        raise Exception(error_msg)
 
 async def upload_to_supabase(audio_path: str, user_id: str, original_url: str) -> str:
     """Upload audio file to Supabase Storage and create database record"""
