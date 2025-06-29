@@ -239,8 +239,7 @@ async def upload_to_supabase(audio_path: str, user_id: str, original_url: str) -
             path=filename,
             file=audio_data,
             file_options={
-                "content-type": "audio/mpeg",
-                "upsert": False
+                "content-type": "audio/mpeg"
             }
         )
         
