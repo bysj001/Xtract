@@ -1,0 +1,177 @@
+import React from 'react';
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+  ActivityIndicator,
+} from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { colors } from '../styles/colors';
+import { globalStyles } from '../styles/globalStyles';
+
+interface ButtonProps {
+  title: string;
+  onPress: () => void;
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  size?: 'small' | 'medium' | 'large';
+  disabled?: boolean;
+  loading?: boolean;
+  style?: ViewStyle;
+  textStyle?: TextStyle;
+  gradient?: boolean;
+}
+
+export const Button: React.FC<ButtonProps> = ({
+  title,
+  onPress,
+  variant = 'primary',
+  size = 'medium',
+  disabled = false,
+  loading = false,
+  style,
+  textStyle,
+  gradient = true,
+}) => {
+  const getButtonStyle = (): ViewStyle => {
+    const baseStyle: ViewStyle = {
+      borderRadius: size === 'small' ? 15 : 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+    };
+
+    const sizeStyle: ViewStyle = {
+      paddingVertical: size === 'small' ? 8 : size === 'large' ? 16 : 12,
+      paddingHorizontal: size === 'small' ? 16 : size === 'large' ? 32 : 24,
+    };
+
+    const variantStyle: ViewStyle = (() => {
+      switch (variant) {
+        case 'secondary':
+          return {
+            backgroundColor: gradient ? undefined : colors.secondary,
+          };
+        case 'outline':
+          return {
+            backgroundColor: 'transparent',
+            borderWidth: 1,
+            borderColor: colors.primary,
+          };
+        case 'ghost':
+          return {
+            backgroundColor: 'transparent',
+          };
+        default:
+          return {
+            backgroundColor: gradient ? undefined : colors.primary,
+          };
+      }
+    })();
+
+    return {
+      ...baseStyle,
+      ...sizeStyle,
+      ...variantStyle,
+      opacity: disabled ? 0.6 : 1,
+    };
+  };
+
+  const getTextStyle = (): TextStyle => {
+    const baseStyle: TextStyle = {
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    };
+
+    const sizeStyle: TextStyle = {
+      fontSize: size === 'small' ? 12 : size === 'large' ? 18 : 16,
+    };
+
+    const variantStyle: TextStyle = (() => {
+      switch (variant) {
+        case 'outline':
+          return { color: colors.primary };
+        case 'ghost':
+          return { color: colors.textSecondary };
+        default:
+          return { color: colors.text };
+      }
+    })();
+
+    return {
+      ...baseStyle,
+      ...sizeStyle,
+      ...variantStyle,
+    };
+  };
+
+  const getGradientColors = (): string[] => {
+    switch (variant) {
+      case 'secondary':
+        return colors.gradientSecondary;
+      default:
+        return colors.gradientPrimary;
+    }
+  };
+
+  const buttonContent = (
+    <>
+      {loading && (
+        <ActivityIndicator
+          size="small"
+          color={variant === 'outline' ? colors.primary : colors.text}
+          style={{ marginRight: 8 }}
+        />
+      )}
+      <Text style={[getTextStyle(), textStyle]}>
+        {loading ? 'Loading...' : title}
+      </Text>
+    </>
+  );
+
+  if (gradient && (variant === 'primary' || variant === 'secondary') && !disabled) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled || loading}
+        style={[style]}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={getGradientColors()}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[getButtonStyle(), styles.gradientButton]}
+        >
+          {buttonContent}
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled || loading}
+      style={[getButtonStyle(), style]}
+      activeOpacity={0.8}
+    >
+      {buttonContent}
+    </TouchableOpacity>
+  );
+};
+
+const styles = StyleSheet.create({
+  gradientButton: {
+    shadowColor: colors.primary,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+}); 

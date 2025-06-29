@@ -1,0 +1,19 @@
+# FastAPI and server dependencies
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.4
+
+# CORS middleware
+python-multipart==0.0.17
+
+# Video/Audio processing
+yt-dlp==2024.12.13
+
+# Supabase client
+supabase==2.10.0
+
+# System monitoring (for health check)
+psutil==6.1.0
+
+# Additional utilities
+python-dateutil==2.9.0.post0 
