@@ -226,9 +226,13 @@ async def upload_to_supabase(audio_path: str, user_id: str, original_url: str) -
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         filename = f"{user_id}/{timestamp}_{uuid.uuid4().hex[:8]}.mp3"
         
+        print(f"[INFO] Uploading to Supabase Storage: {filename}")
+        
         # Read the audio file
         with open(audio_path, 'rb') as f:
             audio_data = f.read()
+        
+        print(f"[INFO] Audio file size: {len(audio_data)} bytes")
         
         # Upload to Supabase Storage
         storage_response = supabase.storage.from_('audio-files').upload(
@@ -240,18 +244,24 @@ async def upload_to_supabase(audio_path: str, user_id: str, original_url: str) -
             }
         )
         
+        print(f"[INFO] Storage upload response: {storage_response}")
+        
+        # Check for upload errors
         if hasattr(storage_response, 'error') and storage_response.error:
             raise Exception(f"Storage upload failed: {storage_response.error}")
         
-        # Get public URL
-        public_url_response = supabase.storage.from_('audio-files').get_public_url(filename)
-        file_url = public_url_response
+        # Get public URL - this returns the URL string directly
+        file_url = supabase.storage.from_('audio-files').get_public_url(filename)
+        
+        print(f"[INFO] Generated public URL: {file_url}")
         
         # Get file size
         file_size = len(audio_data)
         
         # Extract base filename for display
         display_filename = f"extracted_audio_{timestamp}.mp3"
+        
+        print(f"[INFO] Creating database record for audio file")
         
         # Create database record
         db_response = supabase.table('audio_files').insert({
@@ -263,13 +273,21 @@ async def upload_to_supabase(audio_path: str, user_id: str, original_url: str) -
             'updated_at': datetime.utcnow().isoformat()
         }).execute()
         
+        print(f"[INFO] Database insert response: {db_response}")
+        
         if not db_response.data:
             raise Exception("Failed to create audio_files record")
         
         audio_file_id = db_response.data[0]['id']
+        print(f"[INFO] Successfully created audio file record with ID: {audio_file_id}")
+        
         return audio_file_id
         
     except Exception as e:
+        print(f"[ERROR] Supabase upload error: {e}")
+        print(f"[ERROR] Error type: {type(e)}")
+        import traceback
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
         raise Exception(f"Supabase upload failed: {e}")
 
 # Test function for local development
