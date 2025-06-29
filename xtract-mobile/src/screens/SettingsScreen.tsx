@@ -39,10 +39,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, rout
             try {
               await AuthService.signOut();
               navigation.navigate('Welcome');
-            } catch (error) {
-              console.error('Error signing out:', error);
-              Alert.alert('Error', 'Failed to sign out. Please try again.');
-            }
+                } catch (error) {
+      Alert.alert('Error', 'Failed to sign out. Please try again.');
+    }
           }
         }
       ]

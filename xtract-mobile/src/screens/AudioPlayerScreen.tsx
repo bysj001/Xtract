@@ -164,7 +164,7 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
         case 'loaded':
           setDuration(data.duration);
           setLoading(false);
-          console.log('Audio loaded, duration:', data.duration);
+          // Audio loaded successfully
           break;
           
         case 'timeupdate':
@@ -189,9 +189,9 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
           Alert.alert('Audio Error', `Failed to load audio: ${data.error}`);
           break;
       }
-    } catch (error) {
-      console.error('Error parsing WebView message:', error);
-    }
+          } catch (error) {
+        // Silently handle WebView message parsing error
+      }
   };
 
   // Send commands to WebView

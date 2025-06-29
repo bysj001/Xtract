@@ -32,7 +32,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   const [processingJobs, setProcessingJobs] = useState<ProcessingJob[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [debugInfo, setDebugInfo] = useState<string>('');
+
 
   useEffect(() => {
     loadData();
@@ -53,8 +53,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   const setupSharedUrlListener = () => {
     // Listen for shared URLs that come in while the app is running
     const subscription = SharedUrlManager.addPendingUrlListener((url: string) => {
-      console.log('HomeScreen: Received pending shared URL:', url);
-      
       // Validate that it's a video URL
       if (isValidVideoUrl(url)) {
         handleSharedURL(url);
@@ -70,29 +68,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
 
   const checkForPendingSharedUrl = async () => {
     try {
-      setDebugInfo('Checking for shared URLs...');
       const pendingUrl = await SharedUrlManager.getPendingSharedUrl();
       if (pendingUrl) {
-        console.log('HomeScreen: Found pending shared URL:', pendingUrl);
-        setDebugInfo(`Found shared URL: ${pendingUrl.substring(0, 50)}...`);
-        
-        // Show the actual URL for debugging
-        setDebugInfo(`URL: ${pendingUrl}`);
-        
         // Validate that it's a video URL
         if (isValidVideoUrl(pendingUrl)) {
-          setDebugInfo('Valid video URL found! Processing...');
           handleSharedURL(pendingUrl);
         } else {
-          setDebugInfo(`INVALID URL: ${pendingUrl}`);
-          Alert.alert('Invalid URL', `URL received: ${pendingUrl}\n\nPlease share a valid video URL from Instagram, TikTok, or YouTube.`);
+          Alert.alert('Invalid URL', 'Please share a valid video URL from Instagram, TikTok, or YouTube.');
         }
-      } else {
-        setDebugInfo('No shared URLs found');
       }
     } catch (error) {
-      console.error('HomeScreen: Error checking for pending shared URL:', error);
-      setDebugInfo(`Error: ${error.message}`);
+      // Silently handle error - no need to show debug info to user
     }
   };
 
@@ -129,8 +115,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   };
 
   const handleSharedURL = async (url: string) => {
-    console.log('Automatically processing shared URL:', url);
-    
     // Show immediate feedback to user
     Alert.alert('Processing Video', 'Extracting audio from shared video...', [], { cancelable: false });
     
@@ -140,19 +124,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
       // Success alert is handled in processVideo()
     } catch (error) {
       // Error alert is handled in processVideo()
-      console.error('Auto-processing failed:', error);
     }
   };
 
   const processVideo = async (url: string) => {
     try {
-      console.log('Processing video URL:', url);
-      console.log('User ID:', user.id);
-      
       // Call the Railway backend to process the video
       const result = await BackendService.processVideoUrl(url, user.id);
-      
-      console.log('Backend processing result:', result);
       
       // Dismiss any existing alerts and show success
       Alert.alert('✅ Success!', 'Audio extracted successfully! Check your library below.', [
@@ -160,7 +138,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
       ]);
       
     } catch (error) {
-      console.error('Error processing video:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
       // Dismiss any existing alerts and show error
@@ -182,10 +159,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   const loadAudioFiles = async () => {
     try {
       const files = await AudioService.getUserAudioFiles(user.id);
-      console.log('Loaded audio files:', JSON.stringify(files, null, 2));
       setAudioFiles(files);
     } catch (error) {
-      console.error('Error loading audio files:', error);
+      // Silently handle error
     }
   };
 
@@ -194,7 +170,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
       const jobs = await ProcessingService.getUserProcessingJobs(user.id);
       setProcessingJobs(jobs);
     } catch (error) {
-      console.error('Error loading processing jobs:', error);
+      // Silently handle error
     }
   };
 
@@ -230,9 +206,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   );
 
   const renderAudioFile = (file: AudioFile) => {
-    // Debug log to see the actual file data
-    console.log('Rendering audio file:', JSON.stringify(file, null, 2));
-    
     // Fallback values for missing data
     const title = file.title || extractTitleFromFilename(file.filename) || 'Unknown Audio';
     const duration = file.duration || 0;
@@ -240,17 +213,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     
     const handlePress = () => {
       try {
-        console.log('=== Audio File Pressed ===');
-        console.log('Navigating to AudioPlayer with file:', {
-          id: file.id,
-          filename: file.filename,
-          file_url: file.file_url,
-          title: title
-        });
         navigation.navigate('AudioPlayer', { file });
-        console.log('Navigation call completed');
       } catch (error) {
-        console.error('Error navigating to AudioPlayer:', error);
         Alert.alert('Error', `Failed to open audio player: ${error.message}`);
       }
     };
@@ -331,13 +295,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
           </TouchableOpacity>
         </View>
         
-        {debugInfo && (
-          <View style={styles.debugContainer}>
-            <Text style={styles.debugText}>
-              🐛 Debug: {debugInfo}
-            </Text>
-          </View>
-        )}
+
 
         <ScrollView
           style={styles.content}

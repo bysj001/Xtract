@@ -48,13 +48,8 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
 
     setLoading(true);
     try {
-      console.log('Processing video URL:', url.trim());
-      console.log('User ID:', user.id);
-      
       // Call the Railway backend to process the video
       const result = await BackendService.processVideoUrl(url.trim(), user.id);
-      
-      console.log('Backend processing result:', result);
 
       Alert.alert(
         'Success',
@@ -67,7 +62,6 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
         ]
       );
     } catch (error) {
-      console.error('Error processing video:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       Alert.alert('Error', `Failed to process video: ${errorMessage}`);
     } finally {
@@ -83,7 +77,7 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
         setUrl(clipboardContent);
       }
     } catch (error) {
-      console.error('Error pasting from clipboard:', error);
+      // Silently handle clipboard error
     }
   };
 

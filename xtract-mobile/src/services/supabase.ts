@@ -145,7 +145,7 @@ export class ProcessingService {
           const jobs = await this.getUserProcessingJobs(userId);
           callback(jobs);
         } catch (error) {
-          console.error('Error fetching updated processing jobs:', error);
+          // Silently handle error
         }
       })
       .subscribe();
@@ -186,7 +186,6 @@ export class BackendService {
         audioFileId: data.audio_file_id
       };
     } catch (error) {
-      console.error('Backend service error:', error);
       throw error;
     }
   }

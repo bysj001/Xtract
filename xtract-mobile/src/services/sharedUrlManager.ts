@@ -10,8 +10,6 @@ export class SharedUrlManager {
    * Initialize the shared URL manager
    */
   static initialize() {
-    console.log('SharedUrlManager: Initializing with native module...');
-    
     // Start checking for shared URLs periodically
     this.startChecking();
 
@@ -30,12 +28,11 @@ export class SharedUrlManager {
       try {
         const url = await this.getPendingSharedUrl();
         if (url) {
-          console.log('SharedUrlManager: Found shared URL:', url);
           // Notify all listeners
           this.listeners.forEach(callback => callback(url));
         }
       } catch (error) {
-        console.error('SharedUrlManager: Error checking for shared URL:', error);
+        // Silently handle error
       }
     }, 1000); // Check every second
   }
@@ -56,7 +53,6 @@ export class SharedUrlManager {
   static async getPendingSharedUrl(): Promise<string | null> {
     try {
       if (!SharedUrlModule) {
-        console.warn('SharedUrlManager: Native module not available');
         return null;
       }
 
@@ -64,13 +60,11 @@ export class SharedUrlManager {
       if (url) {
         // Clear the stored URL after retrieving it
         await SharedUrlModule.clearStoredSharedUrl();
-        console.log('SharedUrlManager: Retrieved and cleared stored URL:', url);
         return url;
       }
 
       return null;
     } catch (error) {
-      console.error('SharedUrlManager: Error retrieving shared URL:', error);
       return null;
     }
   }
@@ -81,14 +75,12 @@ export class SharedUrlManager {
   static async clearPendingUrl() {
     try {
       if (!SharedUrlModule) {
-        console.warn('SharedUrlManager: Native module not available');
         return;
       }
 
       await SharedUrlModule.clearStoredSharedUrl();
-      console.log('SharedUrlManager: Cleared stored URL');
     } catch (error) {
-      console.error('SharedUrlManager: Error clearing shared URL:', error);
+      // Silently handle error
     }
   }
 

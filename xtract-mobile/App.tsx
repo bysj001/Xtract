@@ -39,7 +39,6 @@ const MainScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           navigation.replace('Welcome');
         }
       } catch (error) {
-        console.error('Error checking auth state:', error);
         navigation.replace('Welcome');
       } finally {
         setLoading(false);
@@ -100,7 +99,6 @@ const ScreenWrapper: React.FC<{
           navigation.replace('Welcome');
         }
       } catch (error) {
-        console.error('Error checking auth state:', error);
         navigation.replace('Welcome');
       } finally {
         setLoading(false);
