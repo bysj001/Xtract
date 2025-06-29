@@ -8,7 +8,6 @@ import {
   Alert,
   RefreshControl,
   Dimensions,
-  DeviceEventEmitter,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +16,8 @@ import { colors, transparentColors } from '../styles/colors';
 import { globalStyles } from '../styles/globalStyles';
 import { AudioService, ProcessingService, BackendService } from '../services/supabase';
 import { URLSchemeService } from '../services/urlScheme';
-import { ShareMenuService } from '../services/shareMenu';
+import { SharedUrlManager } from '../services/sharedUrlManager';
+import { isValidVideoUrl } from '../utils/videoUtils';
 import { AudioFile, ProcessingJob } from '../types';
 
 const { width } = Dimensions.get('window');
@@ -32,27 +32,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   const [processingJobs, setProcessingJobs] = useState<ProcessingJob[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   useEffect(() => {
     loadData();
     const urlSchemeCleanup = setupURLSchemeListener();
     const processingCleanup = setupProcessingSubscription();
-    const nativeEventCleanup = setupNativeEventListener(); // Listen for shared URLs from native Android
+    const sharedUrlCleanup = setupSharedUrlListener(); // Listen for shared URLs
+    
+    // Check for any pending shared URL when HomeScreen loads
+    checkForPendingSharedUrl();
 
     return () => {
       urlSchemeCleanup?.();
       processingCleanup?.();
-      nativeEventCleanup?.();
+      sharedUrlCleanup?.();
     };
   }, []);
 
-  const setupNativeEventListener = () => {
-    // Listen for shared URLs from Android MainActivity
-    const subscription = DeviceEventEmitter.addListener('sharedURL', (url: string) => {
-      console.log('Received shared URL from native:', url);
+  const setupSharedUrlListener = () => {
+    // Listen for shared URLs that come in while the app is running
+    const subscription = SharedUrlManager.addPendingUrlListener((url: string) => {
+      console.log('HomeScreen: Received pending shared URL:', url);
       
       // Validate that it's a video URL
-      if (ShareMenuService.isValidVideoUrl(url)) {
+      if (isValidVideoUrl(url)) {
         handleSharedURL(url);
       } else {
         Alert.alert('Invalid URL', 'Please share a valid video URL from Instagram, TikTok, or YouTube.');
@@ -62,6 +66,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     return () => {
       subscription.remove();
     };
+  };
+
+  const checkForPendingSharedUrl = async () => {
+    try {
+      setDebugInfo('Checking for shared URLs...');
+      const pendingUrl = await SharedUrlManager.getPendingSharedUrl();
+      if (pendingUrl) {
+        console.log('HomeScreen: Found pending shared URL:', pendingUrl);
+        setDebugInfo(`Found shared URL: ${pendingUrl.substring(0, 50)}...`);
+        
+        // Show the actual URL for debugging
+        setDebugInfo(`URL: ${pendingUrl}`);
+        
+        // Validate that it's a video URL
+        if (isValidVideoUrl(pendingUrl)) {
+          setDebugInfo('Valid video URL found! Processing...');
+          handleSharedURL(pendingUrl);
+        } else {
+          setDebugInfo(`INVALID URL: ${pendingUrl}`);
+          Alert.alert('Invalid URL', `URL received: ${pendingUrl}\n\nPlease share a valid video URL from Instagram, TikTok, or YouTube.`);
+        }
+      } else {
+        setDebugInfo('No shared URLs found');
+      }
+    } catch (error) {
+      console.error('HomeScreen: Error checking for pending shared URL:', error);
+      setDebugInfo(`Error: ${error.message}`);
+    }
   };
 
   const setupURLSchemeListener = () => {
@@ -298,6 +330,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
             <Text style={styles.settingsIcon}>⚙️</Text>
           </TouchableOpacity>
         </View>
+        
+        {debugInfo && (
+          <View style={styles.debugContainer}>
+            <Text style={styles.debugText}>
+              🐛 Debug: {debugInfo}
+            </Text>
+          </View>
+        )}
 
         <ScrollView
           style={styles.content}
@@ -487,5 +527,18 @@ const styles = StyleSheet.create({
   playButtonText: {
     fontSize: 14,
     color: colors.primary,
+  },
+  debugContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginHorizontal: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  debugText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontFamily: 'monospace',
   },
 }); 

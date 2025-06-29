@@ -11,7 +11,10 @@ from pathlib import Path
 
 # Supabase configuration (same as your mobile/desktop apps)
 SUPABASE_URL = "https://wgskngtfekehqpnbbanz.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnc2tuZ3RmZWtlaHFwbmJiYW56Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2MjI2ODIsImV4cCI6MjA2NjE5ODY4Mn0.iBKnwjDDPaoKI1-kTPdEEKMu3ZPskq95NaxQym4LmRw"
+# TODO: Replace with your SERVICE ROLE key from Supabase Dashboard > Settings > API
+# The service role key bypasses RLS policies and is required for backend operations
+# DO NOT use the anon key for backend services
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnc2tuZ3RmZWtlaHFwbmJiYW56Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDYyMjY4MiwiZXhwIjoyMDY2MTk4NjgyfQ.yhrt1Pm_sCwDUcpkTinMZF0_m1s-2zYRzXG2jhmds-k"  # Replace this with your actual service role key
 
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)

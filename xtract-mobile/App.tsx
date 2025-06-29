@@ -19,6 +19,7 @@ import { AudioPlayerScreen } from './src/screens/AudioPlayerScreen';
 import { RootStackParamList, User } from './src/types';
 import { AuthService } from './src/services/supabase';
 import { URLSchemeService } from './src/services/urlScheme';
+import { SharedUrlManager } from './src/services/sharedUrlManager';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -150,10 +151,14 @@ const SettingsScreenWrapper: React.FC<any> = (props) => (
 function App(): React.JSX.Element {
   useEffect(() => {
     // Initialize URL scheme handling
-    const subscription = URLSchemeService.initialize();
+    const urlSchemeSubscription = URLSchemeService.initialize();
+    
+    // Initialize shared URL manager to catch shared URLs early
+    const sharedUrlSubscription = SharedUrlManager.initialize();
     
     return () => {
-      subscription?.remove();
+      urlSchemeSubscription?.remove();
+      sharedUrlSubscription?.();
     };
   }, []);
 

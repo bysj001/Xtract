@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Input } from '../components';
 import { colors, transparentColors } from '../styles/colors';
 import { BackendService } from '../services/supabase';
-import { ShareMenuService } from '../services/shareMenu';
+import { isValidVideoUrl } from '../utils/videoUtils';
 
 interface ManualInputScreenProps {
   navigation: any;
@@ -38,7 +38,7 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
       return;
     }
 
-    if (!ShareMenuService.isValidVideoUrl(url)) {
+    if (!isValidVideoUrl(url)) {
       Alert.alert(
         'Invalid URL',
         'Please enter a valid Instagram, TikTok, or YouTube URL'

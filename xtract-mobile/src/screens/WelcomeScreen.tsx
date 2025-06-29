@@ -16,7 +16,6 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { AuthService } from '../services/supabase';
-import { ShareMenuService } from '../services/shareMenu';
 import { colors } from '../styles/colors';
 import { globalStyles } from '../styles/globalStyles';
 import { RootStackParamList } from '../types';
@@ -46,35 +45,6 @@ export const WelcomeScreen: React.FC = () => {
     };
 
     checkAuthState();
-
-    // Check for shared data when app opens
-    const checkSharedData = async () => {
-      try {
-        const sharedData = await ShareMenuService.getSharedData();
-        if (sharedData && sharedData.type === 'url') {
-          const videoUrl = ShareMenuService.extractVideoUrl(sharedData.data);
-          if (videoUrl) {
-            // If user is authenticated, navigate to manual input with the URL
-            const user = await AuthService.getCurrentUser();
-            if (user) {
-              navigation.navigate('ManualInput', { sharedUrl: videoUrl });
-            } else {
-              // Store the URL for after login
-              // You might want to use AsyncStorage for this
-              Alert.alert(
-                'Video Link Detected',
-                'Please log in first to process this video.',
-                [{ text: 'OK' }]
-              );
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error checking shared data:', error);
-      }
-    };
-
-    checkSharedData();
   }, [navigation]);
 
   const validateForm = (): boolean => {
