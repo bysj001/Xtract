@@ -31,6 +31,7 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
   const [duration, setDuration] = useState(file.duration || 0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [webViewReady, setWebViewReady] = useState(false);
   const webViewRef = useRef<WebView>(null);
 
   // Log the audio file details for debugging
@@ -179,22 +180,84 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
                 }));
             });
             
-            // Listen for commands from React Native
+            // Multiple ways to listen for commands from React Native
+            
+            // Method 1: Standard window message listener
             window.addEventListener('message', function(event) {
-                const command = JSON.parse(event.data);
-                
-                switch(command.type) {
-                    case 'play':
-                        audio.play();
-                        break;
-                    case 'pause':
-                        audio.pause();
-                        break;
-                    case 'seek':
-                        audio.currentTime = command.time;
-                        break;
-                }
+                updateStatus('Method 1 - Received: ' + event.data);
+                console.log('WebView Method 1 received:', event.data);
+                handleCommand(event.data);
             });
+            
+            // Method 2: React Native WebView specific listener
+            document.addEventListener('message', function(event) {
+                updateStatus('Method 2 - Received: ' + event.data);
+                console.log('WebView Method 2 received:', event.data);
+                handleCommand(event.data);
+            });
+            
+            // Method 3: Direct window property (fallback)
+            window.handleReactNativeMessage = function(data) {
+                updateStatus('Method 3 - Received: ' + data);
+                console.log('WebView Method 3 received:', data);
+                handleCommand(data);
+            };
+            
+            // Command handler function
+            function handleCommand(data) {
+                try {
+                    const command = JSON.parse(data);
+                    console.log('WebView: Parsed command:', command);
+                    
+                    switch(command.type) {
+                        case 'play':
+                            updateStatus('▶️ Playing audio...');
+                            console.log('WebView: Executing play command');
+                            const playPromise = audio.play();
+                            if (playPromise !== undefined) {
+                                playPromise
+                                    .then(() => {
+                                        updateStatus('✅ Audio playing!');
+                                        console.log('WebView: Audio playing successfully');
+                                        window.ReactNativeWebView.postMessage(JSON.stringify({
+                                            type: 'play_success'
+                                        }));
+                                    })
+                                    .catch(error => {
+                                        updateStatus('❌ Play failed: ' + error.message);
+                                        console.error('WebView: Play failed:', error);
+                                        window.ReactNativeWebView.postMessage(JSON.stringify({
+                                            type: 'play_error',
+                                            error: error.message
+                                        }));
+                                    });
+                            }
+                            break;
+                        case 'pause':
+                            updateStatus('⏸️ Pausing...');
+                            console.log('WebView: Executing pause command');
+                            audio.pause();
+                            break;
+                        case 'seek':
+                            updateStatus('⏭️ Seeking to: ' + command.time + 's');
+                            console.log('WebView: Seeking to:', command.time);
+                            audio.currentTime = command.time;
+                            break;
+                        default:
+                            updateStatus('❓ Unknown: ' + command.type);
+                            console.log('WebView: Unknown command:', command.type);
+                    }
+                } catch (error) {
+                    updateStatus('💥 Parse error: ' + error.message);
+                    console.error('WebView: Command parse error:', error);
+                }
+            }
+            
+            // Signal that WebView is ready
+            updateStatus('🎯 WebView ready for commands');
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'webview_ready'
+            }));
         </script>
     </body>
     </html>
@@ -220,6 +283,20 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
           
         case 'canplay':
           console.log('AudioPlayer - Can play');
+          break;
+          
+        case 'webview_ready':
+          console.log('AudioPlayer - WebView is ready for commands');
+          setWebViewReady(true);
+          break;
+          
+        case 'play_success':
+          console.log('AudioPlayer - Play command executed successfully');
+          break;
+          
+        case 'play_error':
+          console.error('AudioPlayer - Play command failed:', data.error);
+          Alert.alert('Play Error', `Failed to play audio: ${data.error}`);
           break;
           
         case 'timeupdate':
@@ -254,17 +331,47 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
     }
   };
 
-  // Send commands to WebView
+  // Send commands to WebView with multiple fallback methods
   const sendCommand = (command: any) => {
+    console.log('AudioPlayer - Sending command to WebView:', command);
+    console.log('AudioPlayer - WebView ready state:', webViewReady);
+    
     if (webViewRef.current) {
-      webViewRef.current.postMessage(JSON.stringify(command));
+      const commandString = JSON.stringify(command);
+      
+      // Method 1: Standard postMessage
+      try {
+        webViewRef.current.postMessage(commandString);
+        console.log('AudioPlayer - Method 1 (postMessage) sent');
+      } catch (error) {
+        console.error('AudioPlayer - Method 1 failed:', error);
+      }
+      
+      // Method 2: Inject JavaScript as fallback
+      try {
+        webViewRef.current.injectJavaScript(`
+          if (window.handleReactNativeMessage) {
+            window.handleReactNativeMessage('${commandString}');
+          }
+          true; // Required for Android
+        `);
+        console.log('AudioPlayer - Method 2 (inject) sent');
+      } catch (error) {
+        console.error('AudioPlayer - Method 2 failed:', error);
+      }
+      
+    } else {
+      console.error('AudioPlayer - WebView ref is null, cannot send command');
     }
   };
 
   const togglePlayPause = () => {
+    console.log('AudioPlayer - Toggle play/pause clicked, isPlaying:', isPlaying);
     if (isPlaying) {
+      console.log('AudioPlayer - Sending pause command');
       sendCommand({ type: 'pause' });
     } else {
+      console.log('AudioPlayer - Sending play command');
       sendCommand({ type: 'play' });
     }
   };
@@ -370,6 +477,9 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
               ⚠️ {error}
             </Text>
           )}
+          <Text style={styles.debugText}>
+            WebView Status: {webViewReady ? '🟢 Ready' : '🟡 Loading...'}
+          </Text>
         </View>
 
         {/* Waveform Visualization */}
@@ -547,6 +657,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#ff6b6b',
     marginTop: 8,
+    textAlign: 'center',
+  },
+  debugText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
     textAlign: 'center',
   },
   waveformContainer: {
