@@ -53,7 +53,7 @@ ipcMain.handle('get-mp3-files', async (): Promise<Array<{ name: string; path: st
         path: path.resolve(assetsPath, file) // Ensure absolute path
       }));
 
-    console.log('Found MP3 files:', mp3Files); // Debug logging
+  
     return mp3Files;
   } catch (error) {
     console.error('Error reading MP3 files:', error);

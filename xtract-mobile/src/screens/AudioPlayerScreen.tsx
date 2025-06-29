@@ -34,17 +34,6 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
   const [webViewReady, setWebViewReady] = useState(false);
   const webViewRef = useRef<WebView>(null);
 
-  // Log the audio file details for debugging
-  useEffect(() => {
-    console.log('AudioPlayer - File URL:', file.file_url);
-    console.log('AudioPlayer - File details:', {
-      id: file.id,
-      filename: file.filename,
-      file_size: file.file_size,
-      duration: file.duration
-    });
-  }, []);
-
   // Helper function to extract a clean title from filename
   const extractTitleFromFilename = (filename: string): string => {
     if (!filename) return 'Unknown Audio';
@@ -87,7 +76,7 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
     return `${mb.toFixed(1)} MB`;
   };
 
-  // HTML5 Audio Player Template
+  // HTML5 Audio Player Template - clean up debug elements
   const audioPlayerHTML = `
     <!DOCTYPE html>
     <html>
@@ -96,18 +85,17 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
         <style>
             body { margin: 0; padding: 20px; background: #f0f0f0; }
             audio { width: 100%; height: 50px; margin-bottom: 10px; }
-            .debug { font-family: monospace; font-size: 12px; background: #333; color: #fff; padding: 10px; border-radius: 5px; }
+            .status { font-family: monospace; font-size: 12px; background: #333; color: #fff; padding: 10px; border-radius: 5px; }
         </style>
     </head>
     <body>
-        <div class="debug">Audio URL: ${file.file_url}</div>
         <audio id="audioPlayer" controls preload="metadata" crossorigin="anonymous">
             <source src="${file.file_url}" type="audio/mpeg">
             <source src="${file.file_url}" type="audio/mp3">
             <source src="${file.file_url}">
             Your browser does not support the audio element.
         </audio>
-        <div class="debug" id="status">Status: Loading...</div>
+        <div class="status" id="status">Status: Loading...</div>
         
         <script>
             const audio = document.getElementById('audioPlayer');
@@ -115,7 +103,6 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
             
             function updateStatus(msg) {
                 status.textContent = 'Status: ' + msg;
-                console.log('Audio Status:', msg);
             }
             
             updateStatus('Initializing audio element...');
@@ -184,22 +171,19 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
             
             // Method 1: Standard window message listener
             window.addEventListener('message', function(event) {
-                updateStatus('Method 1 - Received: ' + event.data);
-                console.log('WebView Method 1 received:', event.data);
+                updateStatus('Received: ' + event.data);
                 handleCommand(event.data);
             });
             
             // Method 2: React Native WebView specific listener
             document.addEventListener('message', function(event) {
-                updateStatus('Method 2 - Received: ' + event.data);
-                console.log('WebView Method 2 received:', event.data);
+                updateStatus('Received: ' + event.data);
                 handleCommand(event.data);
             });
             
             // Method 3: Direct window property (fallback)
             window.handleReactNativeMessage = function(data) {
-                updateStatus('Method 3 - Received: ' + data);
-                console.log('WebView Method 3 received:', data);
+                updateStatus('Received: ' + data);
                 handleCommand(data);
             };
             
@@ -207,25 +191,21 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
             function handleCommand(data) {
                 try {
                     const command = JSON.parse(data);
-                    console.log('WebView: Parsed command:', command);
                     
                     switch(command.type) {
                         case 'play':
                             updateStatus('▶️ Playing audio...');
-                            console.log('WebView: Executing play command');
                             const playPromise = audio.play();
                             if (playPromise !== undefined) {
                                 playPromise
                                     .then(() => {
                                         updateStatus('✅ Audio playing!');
-                                        console.log('WebView: Audio playing successfully');
                                         window.ReactNativeWebView.postMessage(JSON.stringify({
                                             type: 'play_success'
                                         }));
                                     })
                                     .catch(error => {
                                         updateStatus('❌ Play failed: ' + error.message);
-                                        console.error('WebView: Play failed:', error);
                                         window.ReactNativeWebView.postMessage(JSON.stringify({
                                             type: 'play_error',
                                             error: error.message
@@ -234,30 +214,20 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
                             }
                             break;
                         case 'pause':
-                            updateStatus('⏸️ Pausing...');
-                            console.log('WebView: Executing pause command');
+                            updateStatus('⏸️ Pausing audio...');
                             audio.pause();
                             break;
                         case 'seek':
                             updateStatus('⏭️ Seeking to: ' + command.time + 's');
-                            console.log('WebView: Seeking to:', command.time);
                             audio.currentTime = command.time;
                             break;
                         default:
-                            updateStatus('❓ Unknown: ' + command.type);
-                            console.log('WebView: Unknown command:', command.type);
+                            updateStatus('❓ Unknown command: ' + command.type);
                     }
-                } catch (error) {
-                    updateStatus('💥 Parse error: ' + error.message);
-                    console.error('WebView: Command parse error:', error);
+                } catch (e) {
+                    updateStatus('❌ Error parsing command: ' + e.message);
                 }
             }
-            
-            // Signal that WebView is ready
-            updateStatus('🎯 WebView ready for commands');
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'webview_ready'
-            }));
         </script>
     </body>
     </html>
@@ -267,111 +237,72 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
   const handleWebViewMessage = (event: any) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      console.log('AudioPlayer - WebView message:', data);
       
       switch (data.type) {
         case 'loadstart':
-          console.log('AudioPlayer - Load started');
           break;
-          
         case 'loaded':
-          console.log('AudioPlayer - Audio loaded, duration:', data.duration);
           setDuration(data.duration);
+          setWebViewReady(true);
           setLoading(false);
           setError(null);
           break;
-          
         case 'canplay':
-          console.log('AudioPlayer - Can play');
           break;
-          
-        case 'webview_ready':
-          console.log('AudioPlayer - WebView is ready for commands');
-          setWebViewReady(true);
-          break;
-          
-        case 'play_success':
-          console.log('AudioPlayer - Play command executed successfully');
-          break;
-          
-        case 'play_error':
-          console.error('AudioPlayer - Play command failed:', data.error);
-          Alert.alert('Play Error', `Failed to play audio: ${data.error}`);
-          break;
-          
         case 'timeupdate':
           setCurrentTime(data.currentTime);
           break;
-          
-        case 'play':
-          console.log('AudioPlayer - Playing');
+        case 'play_success':
           setIsPlaying(true);
           break;
-          
+        case 'play':
+          setIsPlaying(true);
+          break;
         case 'pause':
-          console.log('AudioPlayer - Paused');
           setIsPlaying(false);
           break;
-          
         case 'ended':
-          console.log('AudioPlayer - Ended');
           setIsPlaying(false);
           setCurrentTime(0);
           break;
-          
         case 'error':
-          console.error('AudioPlayer - Error:', data.error);
-          setLoading(false);
-          setError(data.error);
-          Alert.alert('Audio Error', `Failed to load audio: ${data.error}`);
+          Alert.alert('Audio Error', data.error);
           break;
       }
     } catch (error) {
-      console.error('AudioPlayer - Error parsing WebView message:', error);
+      // Handle JSON parsing error
     }
   };
 
   // Send commands to WebView with multiple fallback methods
   const sendCommand = (command: any) => {
-    console.log('AudioPlayer - Sending command to WebView:', command);
-    console.log('AudioPlayer - WebView ready state:', webViewReady);
-    
     if (webViewRef.current) {
-      const commandString = JSON.stringify(command);
-      
-      // Method 1: Standard postMessage
       try {
-        webViewRef.current.postMessage(commandString);
-        console.log('AudioPlayer - Method 1 (postMessage) sent');
-      } catch (error) {
-        console.error('AudioPlayer - Method 1 failed:', error);
-      }
-      
-      // Method 2: Inject JavaScript as fallback
-      try {
-        webViewRef.current.injectJavaScript(`
-          if (window.handleReactNativeMessage) {
-            window.handleReactNativeMessage('${commandString}');
+        // Try multiple methods to ensure command delivery
+        
+        // Method 1: postMessage (most reliable)
+        webViewRef.current.postMessage(JSON.stringify(command));
+        
+        // Method 2: injectedJavaScript (fallback)
+        const script = `
+          try {
+            handleReactNativeMessage('${JSON.stringify(command).replace(/'/g, "\\'")}');
+          } catch(e) {
+            console.error('Script injection failed:', e);
           }
-          true; // Required for Android
-        `);
-        console.log('AudioPlayer - Method 2 (inject) sent');
+          true;
+        `;
+        webViewRef.current.injectJavaScript(script);
       } catch (error) {
-        console.error('AudioPlayer - Method 2 failed:', error);
+        // Handle send error
       }
-      
-    } else {
-      console.error('AudioPlayer - WebView ref is null, cannot send command');
     }
   };
 
   const togglePlayPause = () => {
-    console.log('AudioPlayer - Toggle play/pause clicked, isPlaying:', isPlaying);
     if (isPlaying) {
-      console.log('AudioPlayer - Sending pause command');
       sendCommand({ type: 'pause' });
     } else {
-      console.log('AudioPlayer - Sending play command');
       sendCommand({ type: 'play' });
     }
   };
@@ -466,20 +397,7 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
           <Text style={styles.audioTitle} numberOfLines={2}>
             {displayTitle}
           </Text>
-          <Text style={styles.audioSource} numberOfLines={1}>
-            From: {displaySource}
-          </Text>
-          <Text style={styles.audioDate}>
-            {new Date(file.created_at).toLocaleDateString()}
-          </Text>
-          {error && (
-            <Text style={styles.errorText}>
-              ⚠️ {error}
-            </Text>
-          )}
-          <Text style={styles.debugText}>
-            WebView Status: {webViewReady ? '🟢 Ready' : '🟡 Loading...'}
-          </Text>
+          
         </View>
 
         {/* Waveform Visualization */}

@@ -23,11 +23,8 @@ class SharedUrlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     try {
       val prefs: SharedPreferences = reactApplicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
       val storedUrl = prefs.getString(SHARED_URL_KEY, null)
-      
-      android.util.Log.d("SharedUrlModule", "Retrieved stored URL: $storedUrl")
       promise.resolve(storedUrl)
     } catch (e: Exception) {
-      android.util.Log.e("SharedUrlModule", "Error retrieving stored URL", e)
       promise.reject("GET_URL_ERROR", "Failed to get stored URL", e)
     }
   }
@@ -37,11 +34,8 @@ class SharedUrlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     try {
       val prefs: SharedPreferences = reactApplicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
       prefs.edit().remove(SHARED_URL_KEY).apply()
-      
-      android.util.Log.d("SharedUrlModule", "Cleared stored URL")
       promise.resolve(true)
     } catch (e: Exception) {
-      android.util.Log.e("SharedUrlModule", "Error clearing stored URL", e)
       promise.reject("CLEAR_URL_ERROR", "Failed to clear stored URL", e)
     }
   }

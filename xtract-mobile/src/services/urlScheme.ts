@@ -31,12 +31,9 @@ export class URLSchemeService {
   }
 
   private static handleURL(url: string) {
-    console.log('Received URL:', url);
-    
     // Handle direct video URLs (from Android intent filters)
     if (url.includes('youtube.com') || url.includes('youtu.be') || 
         url.includes('instagram.com') || url.includes('tiktok.com')) {
-      console.log('Direct video URL received:', url);
       
       // Store the shared URL for the app to handle
       AsyncStorage.setItem('pending_shared_url', url);

@@ -40,7 +40,7 @@ export const WelcomeScreen: React.FC = () => {
           navigation.replace('Main');
         }
       } catch (error) {
-        console.log('No authenticated user');
+        // User not authenticated, stay on welcome screen
       }
     };
 

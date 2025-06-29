@@ -41,48 +41,30 @@ class MainActivity : ReactActivity() {
   }
 
   private fun handleIntent(intent: Intent) {
-    android.util.Log.d("XtractMainActivity", "=== handleIntent called ===")
-    android.util.Log.d("XtractMainActivity", "Intent action: ${intent.action}")
-    android.util.Log.d("XtractMainActivity", "Intent type: ${intent.type}")
-    android.util.Log.d("XtractMainActivity", "Intent data: ${intent.data}")
-    
     when (intent.action) {
       Intent.ACTION_SEND -> {
-        android.util.Log.d("XtractMainActivity", "Handling ACTION_SEND")
         if (intent.type == "text/plain") {
           val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-          android.util.Log.d("XtractMainActivity", "Shared text: $sharedText")
           sharedText?.let { url ->
             storeSharedUrl(url)
           }
-        } else {
-          android.util.Log.d("XtractMainActivity", "ACTION_SEND but wrong type: ${intent.type}")
         }
       }
       Intent.ACTION_VIEW -> {
-        android.util.Log.d("XtractMainActivity", "Handling ACTION_VIEW")
         val data = intent.data
-        android.util.Log.d("XtractMainActivity", "View data: $data")
         data?.let { uri ->
           storeSharedUrl(uri.toString())
         }
-      }
-      else -> {
-        android.util.Log.d("XtractMainActivity", "Unknown action: ${intent.action}")
       }
     }
   }
 
   private fun storeSharedUrl(url: String) {
-    android.util.Log.d("XtractMainActivity", "=== storeSharedUrl called ===")
-    android.util.Log.d("XtractMainActivity", "Storing URL: $url")
-    
     try {
       val prefs: SharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
       prefs.edit().putString(SHARED_URL_KEY, url).apply()
-      android.util.Log.d("XtractMainActivity", "URL stored successfully in SharedPreferences")
     } catch (e: Exception) {
-      android.util.Log.e("XtractMainActivity", "Error storing URL in SharedPreferences", e)
+      // Handle error silently
     }
   }
 }
