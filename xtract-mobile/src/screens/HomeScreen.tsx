@@ -8,6 +8,7 @@ import {
   Alert,
   RefreshControl,
   Dimensions,
+  DeviceEventEmitter,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,31 +35,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
 
   useEffect(() => {
     loadData();
-    setupURLSchemeListener();
-    setupProcessingSubscription();
-    checkForSharedData(); // Check for shared URLs when component mounts
+    const urlSchemeCleanup = setupURLSchemeListener();
+    const processingCleanup = setupProcessingSubscription();
+    const nativeEventCleanup = setupNativeEventListener(); // Listen for shared URLs from native Android
+
+    return () => {
+      urlSchemeCleanup?.();
+      processingCleanup?.();
+      nativeEventCleanup?.();
+    };
   }, []);
 
-  const checkForSharedData = async () => {
-    try {
-      const sharedData = await ShareMenuService.getSharedData();
+  const setupNativeEventListener = () => {
+    // Listen for shared URLs from Android MainActivity
+    const subscription = DeviceEventEmitter.addListener('sharedURL', (url: string) => {
+      console.log('Received shared URL from native:', url);
       
-      if (sharedData && sharedData.type === 'url') {
-        console.log('Found shared URL:', sharedData.data);
-        
-        // Validate that it's a video URL
-        if (ShareMenuService.isValidVideoUrl(sharedData.data)) {
-          handleSharedURL(sharedData.data);
-        } else {
-          Alert.alert('Invalid URL', 'Please share a valid video URL from Instagram, TikTok, or YouTube.');
-        }
-        
-        // Clear the shared data after handling
-        ShareMenuService.clearSharedData();
+      // Validate that it's a video URL
+      if (ShareMenuService.isValidVideoUrl(url)) {
+        handleSharedURL(url);
+      } else {
+        Alert.alert('Invalid URL', 'Please share a valid video URL from Instagram, TikTok, or YouTube.');
       }
-    } catch (error) {
-      console.error('Error checking shared data:', error);
-    }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   };
 
   const setupURLSchemeListener = () => {
