@@ -30,7 +30,19 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(file.duration || 0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const webViewRef = useRef<WebView>(null);
+
+  // Log the audio file details for debugging
+  useEffect(() => {
+    console.log('AudioPlayer - File URL:', file.file_url);
+    console.log('AudioPlayer - File details:', {
+      id: file.id,
+      filename: file.filename,
+      file_size: file.file_size,
+      duration: file.duration
+    });
+  }, []);
 
   // Helper function to extract a clean title from filename
   const extractTitleFromFilename = (filename: string): string => {
@@ -81,23 +93,51 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body { margin: 0; padding: 0; background: transparent; }
-            audio { width: 100%; height: 50px; }
+            body { margin: 0; padding: 20px; background: #f0f0f0; }
+            audio { width: 100%; height: 50px; margin-bottom: 10px; }
+            .debug { font-family: monospace; font-size: 12px; background: #333; color: #fff; padding: 10px; border-radius: 5px; }
         </style>
     </head>
     <body>
+        <div class="debug">Audio URL: ${file.file_url}</div>
         <audio id="audioPlayer" controls preload="metadata" crossorigin="anonymous">
             <source src="${file.file_url}" type="audio/mpeg">
+            <source src="${file.file_url}" type="audio/mp3">
+            <source src="${file.file_url}">
             Your browser does not support the audio element.
         </audio>
+        <div class="debug" id="status">Status: Loading...</div>
         
         <script>
             const audio = document.getElementById('audioPlayer');
+            const status = document.getElementById('status');
+            
+            function updateStatus(msg) {
+                status.textContent = 'Status: ' + msg;
+                console.log('Audio Status:', msg);
+            }
+            
+            updateStatus('Initializing audio element...');
+            
+            audio.addEventListener('loadstart', function() {
+                updateStatus('Loading started...');
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'loadstart'
+                }));
+            });
             
             audio.addEventListener('loadedmetadata', function() {
+                updateStatus('Metadata loaded. Duration: ' + audio.duration + 's');
                 window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'loaded',
                     duration: audio.duration
+                }));
+            });
+            
+            audio.addEventListener('canplay', function() {
+                updateStatus('Can start playing');
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'canplay'
                 }));
             });
             
@@ -110,27 +150,32 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
             });
             
             audio.addEventListener('play', function() {
+                updateStatus('Playing...');
                 window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'play'
                 }));
             });
             
             audio.addEventListener('pause', function() {
+                updateStatus('Paused');
                 window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'pause'
                 }));
             });
             
             audio.addEventListener('ended', function() {
+                updateStatus('Playback ended');
                 window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'ended'
                 }));
             });
             
             audio.addEventListener('error', function(e) {
+                const errorMsg = 'Error: ' + (e.message || audio.error?.message || 'Failed to load audio');
+                updateStatus(errorMsg);
                 window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'error',
-                    error: e.message || 'Audio load failed'
+                    error: errorMsg
                 }));
             });
             
@@ -159,12 +204,22 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
   const handleWebViewMessage = (event: any) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
+      console.log('AudioPlayer - WebView message:', data);
       
       switch (data.type) {
+        case 'loadstart':
+          console.log('AudioPlayer - Load started');
+          break;
+          
         case 'loaded':
+          console.log('AudioPlayer - Audio loaded, duration:', data.duration);
           setDuration(data.duration);
           setLoading(false);
-          // Audio loaded successfully
+          setError(null);
+          break;
+          
+        case 'canplay':
+          console.log('AudioPlayer - Can play');
           break;
           
         case 'timeupdate':
@@ -172,26 +227,31 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
           break;
           
         case 'play':
+          console.log('AudioPlayer - Playing');
           setIsPlaying(true);
           break;
           
         case 'pause':
+          console.log('AudioPlayer - Paused');
           setIsPlaying(false);
           break;
           
         case 'ended':
+          console.log('AudioPlayer - Ended');
           setIsPlaying(false);
           setCurrentTime(0);
           break;
           
         case 'error':
+          console.error('AudioPlayer - Error:', data.error);
           setLoading(false);
+          setError(data.error);
           Alert.alert('Audio Error', `Failed to load audio: ${data.error}`);
           break;
       }
-          } catch (error) {
-        // Silently handle WebView message parsing error
-      }
+    } catch (error) {
+      console.error('AudioPlayer - Error parsing WebView message:', error);
+    }
   };
 
   // Send commands to WebView
@@ -252,7 +312,7 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
   return (
     <LinearGradient colors={[colors.background, colors.backgroundLight]} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        {/* Hidden WebView for HTML5 Audio Player */}
+        {/* WebView for HTML5 Audio Player - visible for debugging */}
         <WebView
           ref={webViewRef}
           source={{ html: audioPlayerHTML }}
@@ -262,6 +322,19 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
           onMessage={handleWebViewMessage}
           mediaPlaybackRequiresUserAction={false}
           allowsInlineMediaPlayback={true}
+          allowFileAccess={true}
+          allowUniversalAccessFromFileURLs={true}
+          mixedContentMode="compatibility"
+          onError={(syntheticEvent) => {
+            const { nativeEvent } = syntheticEvent;
+            console.error('WebView error:', nativeEvent);
+            setError('WebView failed to load');
+          }}
+          onHttpError={(syntheticEvent) => {
+            const { nativeEvent } = syntheticEvent;
+            console.error('WebView HTTP error:', nativeEvent);
+            setError(`HTTP Error: ${nativeEvent.statusCode}`);
+          }}
         />
         
         {/* Header */}
@@ -292,6 +365,11 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
           <Text style={styles.audioDate}>
             {new Date(file.created_at).toLocaleDateString()}
           </Text>
+          {error && (
+            <Text style={styles.errorText}>
+              ⚠️ {error}
+            </Text>
+          )}
         </View>
 
         {/* Waveform Visualization */}
@@ -411,12 +489,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   hiddenWebView: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: 0,
-    height: 0,
-    opacity: 0,
+    height: 200,
+    width: '100%',
+    marginBottom: 10,
   },
   header: {
     flexDirection: 'row',
@@ -467,6 +542,12 @@ const styles = StyleSheet.create({
   audioDate: {
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#ff6b6b',
+    marginTop: 8,
+    textAlign: 'center',
   },
   waveformContainer: {
     paddingHorizontal: 20,

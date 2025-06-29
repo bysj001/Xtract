@@ -11,14 +11,14 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Waveform } from '../components';
+import { Button } from '../components';
 import { colors, transparentColors } from '../styles/colors';
 import { globalStyles } from '../styles/globalStyles';
-import { AudioService, ProcessingService, BackendService } from '../services/supabase';
+import { AudioService, BackendService } from '../services/supabase';
 import { URLSchemeService } from '../services/urlScheme';
 import { SharedUrlManager } from '../services/sharedUrlManager';
 import { isValidVideoUrl } from '../utils/videoUtils';
-import { AudioFile, ProcessingJob } from '../types';
+import { AudioFile } from '../types';
 
 const { width } = Dimensions.get('window');
 
@@ -29,7 +29,6 @@ interface HomeScreenProps {
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
-  const [processingJobs, setProcessingJobs] = useState<ProcessingJob[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -37,7 +36,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   useEffect(() => {
     loadData();
     const urlSchemeCleanup = setupURLSchemeListener();
-    const processingCleanup = setupProcessingSubscription();
     const sharedUrlCleanup = setupSharedUrlListener(); // Listen for shared URLs
     
     // Check for any pending shared URL when HomeScreen loads
@@ -45,7 +43,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
 
     return () => {
       urlSchemeCleanup?.();
-      processingCleanup?.();
       sharedUrlCleanup?.();
     };
   }, []);
@@ -97,22 +94,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     return removeListener;
   };
 
-  const setupProcessingSubscription = () => {
-    const subscription = ProcessingService.subscribeToProcessingJobs(
-      user.id,
-      (jobs) => {
-        setProcessingJobs(jobs);
-        // Refresh audio files when processing completes
-        if (jobs.some(job => job.status === 'completed')) {
-          loadAudioFiles();
-        }
-      }
-    );
 
-    return () => {
-      subscription?.unsubscribe();
-    };
-  };
 
   const handleSharedURL = async (url: string) => {
     // Show immediate feedback to user
@@ -149,10 +131,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
 
   const loadData = async () => {
     setLoading(true);
-    await Promise.all([
-      loadAudioFiles(),
-      loadProcessingJobs()
-    ]);
+    await loadAudioFiles();
     setLoading(false);
   };
 
@@ -165,14 +144,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     }
   };
 
-  const loadProcessingJobs = async () => {
-    try {
-      const jobs = await ProcessingService.getUserProcessingJobs(user.id);
-      setProcessingJobs(jobs);
-    } catch (error) {
-      // Silently handle error
-    }
-  };
+
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -180,30 +152,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     setRefreshing(false);
   };
 
-  const renderProcessingJob = (job: ProcessingJob) => (
-    <View key={job.id} style={styles.jobCard}>
-      <LinearGradient
-        colors={[transparentColors.primary20, transparentColors.secondary20]}
-        style={styles.jobGradient}
-      >
-        <View style={styles.jobHeader}>
-          <Text style={styles.jobTitle}>Processing Video</Text>
-          <Text style={styles.jobStatus}>{job.status}</Text>
-        </View>
-        <Text style={styles.jobUrl} numberOfLines={2}>
-          {job.original_url}
-        </Text>
-        {job.status === 'processing' && (
-          <View style={styles.waveformContainer}>
-            <Waveform size={20} />
-          </View>
-        )}
-        {job.error_message && (
-          <Text style={styles.errorText}>{job.error_message}</Text>
-        )}
-      </LinearGradient>
-    </View>
-  );
+
 
   const renderAudioFile = (file: AudioFile) => {
     // Fallback values for missing data
@@ -215,7 +164,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
       try {
         navigation.navigate('AudioPlayer', { file });
       } catch (error) {
-        Alert.alert('Error', `Failed to open audio player: ${error.message}`);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        Alert.alert('Error', `Failed to open audio player: ${errorMessage}`);
       }
     };
     
@@ -303,13 +253,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* Processing Jobs Section */}
-          {processingJobs.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Processing</Text>
-              {processingJobs.map(renderProcessingJob)}
-            </View>
-          )}
+
 
           {/* Audio Files Section */}
           <View style={styles.section}>
