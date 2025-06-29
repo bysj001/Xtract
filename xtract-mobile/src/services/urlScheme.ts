@@ -33,7 +33,22 @@ export class URLSchemeService {
   private static handleURL(url: string) {
     console.log('Received URL:', url);
     
-    // Parse xtract://share?url=... format
+    // Handle direct video URLs (from Android intent filters)
+    if (url.includes('youtube.com') || url.includes('youtu.be') || 
+        url.includes('instagram.com') || url.includes('tiktok.com')) {
+      console.log('Direct video URL received:', url);
+      
+      // Store the shared URL for the app to handle
+      AsyncStorage.setItem('pending_shared_url', url);
+      
+      // Notify listeners immediately
+      this.listeners.forEach(listener => {
+        listener(url);
+      });
+      return;
+    }
+    
+    // Parse xtract://share?url=... format (for custom URL schemes)
     if (url.startsWith('xtract://share')) {
       const urlParams = new URLSearchParams(url.split('?')[1]);
       const sharedUrl = urlParams.get('url');

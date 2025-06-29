@@ -94,14 +94,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   };
 
   const handleSharedURL = async (url: string) => {
-    Alert.alert(
-      'Process Video',
-      `Do you want to extract audio from this video?\n\n${url}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Extract', onPress: () => processVideo(url) }
-      ]
-    );
+    console.log('Automatically processing shared URL:', url);
+    
+    // Show immediate feedback to user
+    Alert.alert('Processing Video', 'Extracting audio from shared video...', [], { cancelable: false });
+    
+    // Automatically process the video
+    try {
+      await processVideo(url);
+      // Success alert is handled in processVideo()
+    } catch (error) {
+      // Error alert is handled in processVideo()
+      console.error('Auto-processing failed:', error);
+    }
   };
 
   const processVideo = async (url: string) => {
@@ -114,11 +119,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
       
       console.log('Backend processing result:', result);
       
-      Alert.alert('Success', 'Video processing completed! Check your audio files.');
-      loadData(); // Refresh the data to show new audio file
+      // Dismiss any existing alerts and show success
+      Alert.alert('✅ Success!', 'Audio extracted successfully! Check your library below.', [
+        { text: 'OK', onPress: () => loadData() }
+      ]);
+      
     } catch (error) {
       console.error('Error processing video:', error);
-      Alert.alert('Error', `Failed to process video: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      
+      // Dismiss any existing alerts and show error
+      Alert.alert('❌ Error', `Failed to extract audio:\n${errorMessage}`, [
+        { text: 'OK' }
+      ]);
     }
   };
 
