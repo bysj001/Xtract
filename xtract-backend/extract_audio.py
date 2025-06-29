@@ -114,13 +114,11 @@ async def download_video(url: str, session_dir: str) -> str:
     
     # Try multiple format strategies for better compatibility
     format_strategies = [
-        # Strategy 1: Audio-only (less likely to be blocked)
-        'bestaudio[ext=m4a]/bestaudio',
-        # Strategy 2: Best single format (no merging required)
+        # Strategy 1: Best single format (no merging required)
         'best[ext=mp4]/best',
-        # Strategy 3: Best video + best audio (requires ffmpeg)
+        # Strategy 2: Best video + best audio (requires ffmpeg)
         'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
-        # Strategy 4: Fallback to any best format
+        # Strategy 3: Fallback to any best format
         'best'
     ]
     
@@ -130,26 +128,7 @@ async def download_video(url: str, session_dir: str) -> str:
             'format': format_str,
             'quiet': True,
             'no_warnings': True,
-            # Anti-bot measures
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'referer': 'https://www.youtube.com/',
-            'sleep_interval': 1,
-            'max_sleep_interval': 3,
-            # Disable unnecessary features that might trigger detection
-            'no_check_certificate': True,
-            'prefer_insecure': False,
         }
-        
-        # Add YouTube-specific options for better compatibility
-        if 'youtube.com' in url or 'youtu.be' in url:
-            ydl_opts.update({
-                'extractor_args': {
-                    'youtube': {
-                        'skip': ['hls', 'dash'],  # Skip adaptive formats that require more requests
-                        'player_skip': ['configs'],  # Skip player config requests
-                    }
-                }
-            })
         
         # Only add merge format for strategies that might need it
         if 'bestvideo+bestaudio' in format_str:
@@ -157,7 +136,6 @@ async def download_video(url: str, session_dir: str) -> str:
         
         try:
             print(f"[INFO] Trying download strategy {i+1}: {format_str}")
-            print(f"[INFO] Using options: {ydl_opts}")
             
             # Run yt-dlp in executor to avoid blocking
             loop = asyncio.get_event_loop()
@@ -172,37 +150,6 @@ async def download_video(url: str, session_dir: str) -> str:
             
         except Exception as e:
             print(f"[WARNING] Strategy {i+1} failed: {e}")
-            
-            # For YouTube, try a more aggressive fallback with different user agent
-            if i == len(format_strategies) - 1 and ('youtube.com' in url or 'youtu.be' in url):
-                print(f"[INFO] Trying final YouTube fallback with alternative configuration")
-                try:
-                    fallback_opts = {
-                        'outtmpl': video_path_template,
-                        'format': 'worst',  # Try worst quality to avoid bot detection
-                        'quiet': True,
-                        'no_warnings': True,
-                        'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
-                        'extractor_args': {
-                            'youtube': {
-                                'player_client': ['android', 'web'],
-                                'skip': ['hls', 'dash', 'translated_subs'],
-                            }
-                        }
-                    }
-                    
-                    await loop.run_in_executor(None, _download_with_ytdlp, url, fallback_opts)
-                    
-                    # Check for downloaded file
-                    for file in os.listdir(session_dir):
-                        if file.endswith((".mp4", ".mkv", ".webm", ".m4a", ".mp3")):
-                            file_path = os.path.join(session_dir, file)
-                            print(f"[INFO] Fallback strategy succeeded: {file}")
-                            return file_path
-                            
-                except Exception as fallback_e:
-                    print(f"[WARNING] Fallback strategy also failed: {fallback_e}")
-            
             if i == len(format_strategies) - 1:
                 # This was the last strategy, re-raise the error
                 raise Exception(f"All download strategies failed. Last error: {e}")
