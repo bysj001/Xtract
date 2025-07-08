@@ -6,6 +6,7 @@ import random
 import asyncio
 from typing import Dict, Any, Optional
 from urllib.parse import urlparse, parse_qs, urlencode
+from collections import OrderedDict
 
 # No global rate limiting needed - instagram-video-downloader proves this works without delays
 
@@ -75,7 +76,6 @@ class InstagramGraphQLClient:
         
         # Use EXACT static values from working implementation - no randomization!
         # CRITICAL: Maintain EXACT parameter order from working implementation
-        from collections import OrderedDict
         body_params = OrderedDict([
             ("av", "0"),
             ("__d", "www"),
