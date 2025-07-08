@@ -33,6 +33,13 @@ class InstagramGraphQLClient:
         session = requests.Session()
         session.cookies.clear()
         
+        # CRITICAL: Set session to handle cookies automatically (like credentials: "include")
+        # This is the equivalent of fetch's credentials: "include"
+        session.trust_env = False  # Don't use environment proxy settings
+        
+        # Enable cookie jar for credentials: "include" behavior
+        # This ensures cookies are handled like a browser
+        
         # Add some session-level headers that all requests should have
         session.headers.update({
             'Accept-Encoding': 'gzip, deflate, br',
@@ -61,53 +68,46 @@ class InstagramGraphQLClient:
             "Sec-Fetch-Site": "same-origin",
             "Pragma": "no-cache",
             "Cache-Control": "no-cache",
-            "Referer": f"https://www.instagram.com/p/{shortcode}/",
         }
     
     def generate_request_body(self, shortcode: str) -> str:
-        """Generate request body with some variation to avoid fingerprint detection"""
+        """Generate request body with EXACT values from working instagram-video-downloader"""
         
-        # Generate some random variations while keeping core structure
-        jazoest_variants = ["2946", "21946", "22946", "23946"]  # Slight variations
-        hsi_base = "7489787314313612"
-        hsi_suffix = str(random.randint(100, 999))  # Add random suffix
-        spin_t = str(int(time.time()))  # Use current timestamp
-        
-        # Randomly select req value
-        req_variants = ["b", "c", "d", "e", "f"]
-        
-        body_params = {
-            "av": "0",
-            "__d": "www",
-            "__user": "0",
-            "__a": "1",
-            "__req": random.choice(req_variants),  # Vary this
-            "__hs": "20183.HYP:instagram_web_pkg.2.1...0",
-            "dpr": "3",
-            "__ccg": "GOOD",
-            "__rev": "1021613311",
-            "__s": "hm5eih:ztapmw:x0losd",
-            "__hsi": hsi_base + hsi_suffix,  # Randomize this
-            "__dyn": "7xeUjG1mxu1syUbFp41twpUnwgU7SbzEdF8aUco2qwJw5ux609vCwjE1EE2Cw8G11wBz81s8hwGxu786a3a1YwBgao6C0Mo2swtUd8-U2zxe2GewGw9a361qw8Xxm16wa-0oa2-azo7u3C2u2J0bS1LwTwKG1pg2fwxyo6O1FwlA3a3zhA6bwIxe6V8aUuwm8jwhU3cyVrDyo",
-            "__csr": "goMJ6MT9Z48KVkIBBvRfqKOkinBtG-FfLaRgG-lZ9Qji9XGexh7VozjHRKq5J6KVqjQdGl2pAFmvK5GWGXyk8h9GA-m6V5yF4UWagnJzazAbZ5osXuFkVeGCHG8GF4l5yp9oOezpo88PAlZ1Pxa5bxGQ7o9VrFbg-8wwxp1G2acxacGVQ00jyoE0ijonyXwfwEnwWwkA2m0dLw3tE1I80hCg8UeU4Ohox0clAhAtsM0iCA9wap4DwhS1fxW0fLhpRB51m13xC3e0h2t2H801HQw1bu02j-",
-            "__comet_req": "7",
-            "lsd": self.lsd_token,
-            "jazoest": random.choice(jazoest_variants),  # Vary this
-            "__spin_r": "1021613311",
-            "__spin_b": "trunk",
-            "__spin_t": spin_t,  # Dynamic timestamp
-            "__crn": "comet.igweb.PolarisPostRoute",
-            "fb_api_caller_class": "RelayModern",
-            "fb_api_req_friendly_name": "PolarisPostActionLoadPostQueryQuery",
-            "variables": json.dumps({
-                "shortcode": shortcode,
-                "fetch_tagged_user_count": None,
-                "hoisted_comment_id": None,
-                "hoisted_reply_id": None,
-            }),
-            "server_timestamps": "true",
-            "doc_id": self.doc_id,
-        }
+        # Use EXACT static values from working implementation - no randomization!
+        # CRITICAL: Maintain EXACT parameter order from working implementation
+        from collections import OrderedDict
+        body_params = OrderedDict([
+            ("av", "0"),
+            ("__d", "www"),
+            ("__user", "0"),
+            ("__a", "1"),
+            ("__req", "b"),
+            ("__hs", "20183.HYP:instagram_web_pkg.2.1...0"),
+            ("dpr", "3"),
+            ("__ccg", "GOOD"),
+            ("__rev", "1021613311"),
+            ("__s", "hm5eih:ztapmw:x0losd"),
+            ("__hsi", "7489787314313612244"),
+            ("__dyn", "7xeUjG1mxu1syUbFp41twpUnwgU7SbzEdF8aUco2qwJw5ux609vCwjE1EE2Cw8G11wBz81s8hwGxu786a3a1YwBgao6C0Mo2swtUd8-U2zxe2GewGw9a361qw8Xxm16wa-0oa2-azo7u3C2u2J0bS1LwTwKG1pg2fwxyo6O1FwlA3a3zhA6bwIxe6V8aUuwm8jwhU3cyVrDyo"),
+            ("__csr", "goMJ6MT9Z48KVkIBBvRfqKOkinBtG-FfLaRgG-lZ9Qji9XGexh7VozjHRKq5J6KVqjQdGl2pAFmvK5GWGXyk8h9GA-m6V5yF4UWagnJzazAbZ5osXuFkVeGCHG8GF4l5yp9oOezpo88PAlZ1Pxa5bxGQ7o9VrFbg-8wwxp1G2acxacGVQ00jyoE0ijonyXwfwEnwWwkA2m0dLw3tE1I80hCg8UeU4Ohox0clAhAtsM0iCA9wap4DwhS1fxW0fLhpRB51m13xC3e0h2t2H801HQw1bu02j-"),
+            ("__comet_req", "7"),
+            ("lsd", self.lsd_token),
+            ("jazoest", "2946"),
+            ("__spin_r", "1021613311"),
+            ("__spin_b", "trunk"),
+            ("__spin_t", "1743852001"),
+            ("__crn", "comet.igweb.PolarisPostRoute"),
+            ("fb_api_caller_class", "RelayModern"),
+            ("fb_api_req_friendly_name", "PolarisPostActionLoadPostQueryQuery"),
+                         ("variables", json.dumps({
+                 "shortcode": shortcode,
+                 "fetch_tagged_user_count": None,
+                 "hoisted_comment_id": None,
+                 "hoisted_reply_id": None,
+             }, separators=(',', ':'), ensure_ascii=False)),
+                         ("server_timestamps", True),  # Keep as boolean to match working version
+            ("doc_id", self.doc_id),
+        ])
         
         return urlencode(body_params)
     
@@ -151,6 +151,9 @@ class InstagramGraphQLClient:
             print(f"[INFO] Making GraphQL request to Instagram with fresh session...")
             
             # Make POST request exactly like the working implementation
+            # Set referrer as header to match fetch's referrer behavior
+            headers['Referer'] = f"https://www.instagram.com/p/{shortcode}/"
+            
             # Fresh session mimics browser behavior better
             response = session.post(
                 graphql_url,
