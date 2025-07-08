@@ -102,6 +102,9 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
               <Text style={styles.subtitle}>
                 Paste a link from any supported video platform
               </Text>
+              <Text style={styles.platformNote}>
+                ✅ Best: TikTok • YouTube  •  ⚠️ Instagram (may be limited)
+              </Text>
             </View>
 
             <View style={styles.content}>
@@ -201,6 +204,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  platformNote: {
+    fontSize: 12,
+    color: colors.accent,
+    textAlign: 'center',
+    marginTop: 8,
+    fontWeight: '500',
   },
   content: {
     flex: 1,
