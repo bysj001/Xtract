@@ -7,9 +7,7 @@ import asyncio
 from typing import Dict, Any, Optional
 from urllib.parse import urlparse, parse_qs, urlencode
 
-# Global rate limiting for Instagram requests
-_last_instagram_request_time = 0
-_min_request_interval = 5  # Minimum 5 seconds between Instagram requests globally
+# No global rate limiting needed - instagram-video-downloader proves this works without delays
 
 class InstagramGraphQLError(Exception):
     """Custom exception for Instagram GraphQL API errors"""
@@ -139,23 +137,7 @@ class InstagramGraphQLClient:
         
         print(f"[INFO] Extracted shortcode: {shortcode}")
         
-        # Global rate limiting - ensure minimum time between any Instagram requests
-        global _last_instagram_request_time
-        current_time = time.time()
-        time_since_last = current_time - _last_instagram_request_time
-        
-        if time_since_last < _min_request_interval:
-            wait_time = _min_request_interval - time_since_last
-            print(f"[INFO] Global rate limiting: waiting {wait_time:.1f}s since last Instagram request...")
-            await asyncio.sleep(wait_time)
-        
-        # Add additional random delay for human-like behavior
-        delay = random.uniform(2, 4)  # Random delay on top of rate limiting
-        print(f"[INFO] Adding {delay:.1f}s additional human-like delay...")
-        await asyncio.sleep(delay)
-        
-        # Update last request time
-        _last_instagram_request_time = time.time()
+        # No delays needed - instagram-video-downloader makes immediate requests
         
         # Create fresh session for this request (like opening new browser tab)
         session = self._create_fresh_session()
