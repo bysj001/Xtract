@@ -180,31 +180,8 @@ def get_platform_specific_options(url: str) -> dict:
     user_agent = random.choice(user_agent_list)
     print(f"[INFO] Using {platform} user agent: {user_agent[:50]}...")
     
-    if platform == 'instagram':
-        options.update({
-            'extractor_args': {
-                'instagram': {
-                    'comment_count': 0,
-                    'skip_comments': True,
-                }
-            },
-            'http_headers': {
-                'User-Agent': user_agent,
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-            },
-            'retry_sleep_functions': {
-                'extractor': lambda n: min(8 ** n, 120),  # Longer exponential backoff
-            },
-        })
-    elif platform == 'tiktok':
+    # Instagram uses GraphQL API (no yt-dlp), so no options needed
+    if platform == 'tiktok':
         options.update({
             'http_headers': {
                 'User-Agent': user_agent,
@@ -235,14 +212,14 @@ def get_user_friendly_error(url: str, error_msg: str) -> str:
     error_lower = error_msg.lower()
     
     if 'instagram' in url.lower():
-        # Check for authentication/login issues first
+        # Instagram uses GraphQL API (not yt-dlp) so different error handling
         if any(keyword in error_lower for keyword in [
             'login required', 'authentication required', 'private content',
             'unavailable content', 'access denied', 'forbidden', 'captcha'
         ]):
             return USER_ERROR_MESSAGES['instagram_auth_required']
         
-        # Then check for rate limiting
+        # Instagram GraphQL rate limiting
         if any(keyword in error_lower for keyword in ['rate-limit', 'not available', 'rate limit', 'too many requests']):
             return USER_ERROR_MESSAGES['instagram_rate_limit']
     
@@ -261,28 +238,27 @@ async def download_video(url: str, session_dir: str) -> str:
     platform = get_platform_from_url(url)
     print(f"[INFO] Detected platform: {platform} for URL: {url}")
     
-    # Use Instagram GraphQL API (exactly like instagram-video-downloader - no yt-dlp needed!)
+    # Instagram: Use pure GraphQL API (exactly like instagram-video-downloader)
     if is_instagram_url(url):
-        print("[INFO] Using pure Instagram GraphQL approach (no yt-dlp)")
+        print("[INFO] Using Instagram GraphQL API (no yt-dlp) - exactly like instagram-video-downloader")
         return await download_instagram_video_graphql(url, session_dir)
     
-    # Use yt-dlp for non-Instagram platforms only
+    # Other platforms: Use yt-dlp
     print(f"[INFO] Using yt-dlp for {platform} platform")
     return await download_video_ytdlp(url, session_dir)
 
 async def download_instagram_video_graphql(url: str, session_dir: str) -> str:
     """
-    Download Instagram video using GraphQL API (bypasses rate limits and cookies)
+    Download Instagram video using pure GraphQL API (no yt-dlp)
     
     Uses the exact same approach as the working instagram-video-downloader project.
+    This completely bypasses rate limits and cookies that yt-dlp struggles with.
     """
-    print(f"[INFO] Using Instagram GraphQL API (exact implementation) for: {url}")
+    print(f"[INFO] Using Instagram GraphQL API (PURE - NO YT-DLP) for: {url}")
     
     try:
-        # Apply Instagram-specific rate limiting first
-        await apply_rate_limiting(url)
-        
-        # Get video info using our new async GraphQL API
+        # NO rate limiting needed - instagram-video-downloader proves this works instantly
+        # Get video info using our GraphQL API (same as instagram-video-downloader)
         video_info = await get_instagram_video_info(url)
         
         if not video_info.get('success'):
@@ -297,7 +273,7 @@ async def download_instagram_video_graphql(url: str, session_dir: str) -> str:
         print(f"[INFO] Has audio: {video_info.get('has_audio', 'N/A')}")
         print(f"[INFO] Owner: {video_info.get('owner_username', 'N/A')}")
         
-        # Download the video file using our enhanced downloader
+        # Download the video file using our GraphQL downloader (no yt-dlp)
         video_filename = f"instagram_{shortcode}.mp4"
         video_path = os.path.join(session_dir, video_filename)
         
