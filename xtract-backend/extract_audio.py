@@ -10,7 +10,7 @@ from yt_dlp import YoutubeDL
 import shutil
 from supabase import create_client, Client
 from pathlib import Path
-from config import RATE_LIMITS, USER_AGENTS, MAX_RETRIES, RANDOM_DELAYS, USER_ERROR_MESSAGES, BROWSER_OPTIONS, COOKIE_PLATFORMS
+from config import RATE_LIMITS, USER_AGENTS, MAX_RETRIES, RANDOM_DELAYS, USER_ERROR_MESSAGES
 
 # Supabase configuration (same as your mobile/desktop apps)
 SUPABASE_URL = "https://wgskngtfekehqpnbbanz.supabase.co"
@@ -150,66 +150,9 @@ def get_platform_from_url(url: str) -> str:
     else:
         return 'default'
 
-def get_working_browser() -> str:
-    """Find a browser that works for cookie extraction"""
-    import os
-    import platform
-    
-    system = platform.system().lower()
-    
-    # Browser paths for different systems
-    browser_paths = {
-        'darwin': {  # macOS
-            'chrome': [
-                '/Applications/Google Chrome.app',
-                '~/Applications/Google Chrome.app'
-            ],
-            'safari': ['/Applications/Safari.app'],
-            'firefox': [
-                '/Applications/Firefox.app',
-                '~/Applications/Firefox.app'
-            ],
-            'edge': ['/Applications/Microsoft Edge.app']
-        },
-        'linux': {
-            'chrome': [
-                '~/.config/google-chrome',
-                '~/.var/app/com.google.Chrome'  # Flatpak
-            ],
-            'firefox': ['~/.mozilla/firefox'],
-            'edge': ['~/.config/microsoft-edge']
-        },
-        'windows': {
-            'chrome': [
-                'C:\\Users\\*\\AppData\\Local\\Google\\Chrome\\User Data',
-                'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-            ],
-            'firefox': ['C:\\Users\\*\\AppData\\Roaming\\Mozilla\\Firefox'],
-            'edge': ['C:\\Users\\*\\AppData\\Local\\Microsoft\\Edge\\User Data']
-        }
-    }
-    
-    if system not in browser_paths:
-        return 'chrome'  # Default fallback
-    
-    # Check each browser in order of preference
-    for browser in BROWSER_OPTIONS:
-        if browser in browser_paths[system]:
-            paths = browser_paths[system][browser]
-            for path in paths:
-                expanded_path = os.path.expanduser(path)
-                if os.path.exists(expanded_path):
-                    print(f"[INFO] Found {browser} at {expanded_path}")
-                    return browser
-    
-    print("[INFO] No specific browser found, using chrome as default")
-    return 'chrome'
 
-def needs_cookies(url: str) -> bool:
-    """Check if platform typically requires cookies"""
-    from urllib.parse import urlparse
-    domain = urlparse(url).netloc.lower()
-    return COOKIE_PLATFORMS.get(domain, COOKIE_PLATFORMS['default'])
+
+
 
 def get_platform_specific_options(url: str) -> dict:
     """Get platform-specific yt-dlp options based on configuration"""
@@ -229,7 +172,9 @@ def get_platform_specific_options(url: str) -> dict:
         'ignoreerrors': False,
     }
     
-    # Get rotating user agent (disabled cookies for mobile apps)
+
+    
+    # Get rotating user agent
     user_agent_list = USER_AGENTS.get(platform, USER_AGENTS['default'])
     user_agent = random.choice(user_agent_list)
     print(f"[INFO] Using {platform} user agent: {user_agent[:50]}...")
@@ -379,10 +324,9 @@ async def download_video(url: str, session_dir: str) -> str:
             error_msg = str(e)
             print(f"[WARNING] Strategy {i+1} failed: {error_msg}")
             
-            # If this was the last strategy, provide user-friendly error
+            # If this was the last strategy, show raw error for debugging
             if i == len(format_strategies) - 1:
-                user_friendly_error = get_user_friendly_error(url, error_msg)
-                raise Exception(user_friendly_error)
+                raise Exception(f"All download strategies failed. Raw yt-dlp error: {error_msg}")
             continue
     
     raise Exception("No video file found after trying all download strategies")

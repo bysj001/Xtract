@@ -12,25 +12,7 @@ RATE_LIMITS = {
     'default': 5             # Default for other platforms
 }
 
-# Browser options for cookie extraction (disabled for mobile app use)
-BROWSER_OPTIONS = [
-    'chrome',
-    'safari',
-    'firefox',
-    'edge'
-]
 
-# Platform-specific cookie requirements (DISABLED for mobile apps)
-COOKIE_PLATFORMS = {
-    'instagram.com': False,      # Disable cookies for mobile app backend
-    'www.instagram.com': False,
-    'tiktok.com': False,         # Disable cookies for mobile app backend
-    'www.tiktok.com': False,
-    'vm.tiktok.com': False,
-    'youtube.com': False,        # YouTube usually works without cookies
-    'youtu.be': False,
-    'default': False
-}
 
 # Enhanced mobile-focused user agents
 USER_AGENTS = {

@@ -92,4 +92,9 @@ coverage.xml
 # mypy
 .mypy_cache/
 .dmypy.json
-dmypy.json 
+dmypy.json
+
+# Instagram Authentication (NEVER commit these!)
+cookies/
+*.cookies.txt
+*_cookies.txt 
