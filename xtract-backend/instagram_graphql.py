@@ -7,6 +7,10 @@ import asyncio
 from typing import Dict, Any, Optional
 from urllib.parse import urlparse, parse_qs, urlencode
 
+# Global rate limiting for Instagram requests
+_last_instagram_request_time = 0
+_min_request_interval = 5  # Minimum 5 seconds between Instagram requests globally
+
 class InstagramGraphQLError(Exception):
     """Custom exception for Instagram GraphQL API errors"""
     pass
@@ -18,12 +22,27 @@ class InstagramGraphQLClient:
     """
     
     def __init__(self):
-        self.session = requests.Session()
+        # Don't create session in __init__ - create fresh session per request
+        self.session = None
         
         # Exact parameters from working implementation
         self.doc_id = "8845758582119845"
         self.lsd_token = "AVrqPT0gJDo"
         self.app_id = "1217981644879628"
+    
+    def _create_fresh_session(self) -> requests.Session:
+        """Create a fresh session for each request (like opening a new browser tab)"""
+        session = requests.Session()
+        session.cookies.clear()
+        
+        # Add some session-level headers that all requests should have
+        session.headers.update({
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        })
+        
+        return session
         
     def get_headers(self, shortcode: str) -> Dict[str, str]:
         """Generate headers that exactly match the working implementation"""
@@ -48,29 +67,37 @@ class InstagramGraphQLClient:
         }
     
     def generate_request_body(self, shortcode: str) -> str:
-        """Generate request body exactly matching the working TypeScript implementation"""
+        """Generate request body with some variation to avoid fingerprint detection"""
         
-        # Exact parameters from the working implementation
+        # Generate some random variations while keeping core structure
+        jazoest_variants = ["2946", "21946", "22946", "23946"]  # Slight variations
+        hsi_base = "7489787314313612"
+        hsi_suffix = str(random.randint(100, 999))  # Add random suffix
+        spin_t = str(int(time.time()))  # Use current timestamp
+        
+        # Randomly select req value
+        req_variants = ["b", "c", "d", "e", "f"]
+        
         body_params = {
             "av": "0",
             "__d": "www",
             "__user": "0",
             "__a": "1",
-            "__req": "b",
+            "__req": random.choice(req_variants),  # Vary this
             "__hs": "20183.HYP:instagram_web_pkg.2.1...0",
             "dpr": "3",
             "__ccg": "GOOD",
             "__rev": "1021613311",
             "__s": "hm5eih:ztapmw:x0losd",
-            "__hsi": "7489787314313612244",
+            "__hsi": hsi_base + hsi_suffix,  # Randomize this
             "__dyn": "7xeUjG1mxu1syUbFp41twpUnwgU7SbzEdF8aUco2qwJw5ux609vCwjE1EE2Cw8G11wBz81s8hwGxu786a3a1YwBgao6C0Mo2swtUd8-U2zxe2GewGw9a361qw8Xxm16wa-0oa2-azo7u3C2u2J0bS1LwTwKG1pg2fwxyo6O1FwlA3a3zhA6bwIxe6V8aUuwm8jwhU3cyVrDyo",
             "__csr": "goMJ6MT9Z48KVkIBBvRfqKOkinBtG-FfLaRgG-lZ9Qji9XGexh7VozjHRKq5J6KVqjQdGl2pAFmvK5GWGXyk8h9GA-m6V5yF4UWagnJzazAbZ5osXuFkVeGCHG8GF4l5yp9oOezpo88PAlZ1Pxa5bxGQ7o9VrFbg-8wwxp1G2acxacGVQ00jyoE0ijonyXwfwEnwWwkA2m0dLw3tE1I80hCg8UeU4Ohox0clAhAtsM0iCA9wap4DwhS1fxW0fLhpRB51m13xC3e0h2t2H801HQw1bu02j-",
             "__comet_req": "7",
             "lsd": self.lsd_token,
-            "jazoest": "2946",
+            "jazoest": random.choice(jazoest_variants),  # Vary this
             "__spin_r": "1021613311",
             "__spin_b": "trunk",
-            "__spin_t": "1743852001",
+            "__spin_t": spin_t,  # Dynamic timestamp
             "__crn": "comet.igweb.PolarisPostRoute",
             "fb_api_caller_class": "RelayModern",
             "fb_api_req_friendly_name": "PolarisPostActionLoadPostQueryQuery",
@@ -80,7 +107,7 @@ class InstagramGraphQLClient:
                 "hoisted_comment_id": None,
                 "hoisted_reply_id": None,
             }),
-            "server_timestamps": True,
+            "server_timestamps": "true",
             "doc_id": self.doc_id,
         }
         
@@ -112,8 +139,26 @@ class InstagramGraphQLClient:
         
         print(f"[INFO] Extracted shortcode: {shortcode}")
         
-        # Add random delay for human-like behavior
-        await asyncio.sleep(random.uniform(1, 3))
+        # Global rate limiting - ensure minimum time between any Instagram requests
+        global _last_instagram_request_time
+        current_time = time.time()
+        time_since_last = current_time - _last_instagram_request_time
+        
+        if time_since_last < _min_request_interval:
+            wait_time = _min_request_interval - time_since_last
+            print(f"[INFO] Global rate limiting: waiting {wait_time:.1f}s since last Instagram request...")
+            await asyncio.sleep(wait_time)
+        
+        # Add additional random delay for human-like behavior
+        delay = random.uniform(2, 4)  # Random delay on top of rate limiting
+        print(f"[INFO] Adding {delay:.1f}s additional human-like delay...")
+        await asyncio.sleep(delay)
+        
+        # Update last request time
+        _last_instagram_request_time = time.time()
+        
+        # Create fresh session for this request (like opening new browser tab)
+        session = self._create_fresh_session()
         
         # Prepare the request exactly like the working implementation
         graphql_url = "https://www.instagram.com/graphql/query"
@@ -121,14 +166,16 @@ class InstagramGraphQLClient:
         body = self.generate_request_body(shortcode)
         
         try:
-            print(f"[INFO] Making GraphQL request to Instagram...")
+            print(f"[INFO] Making GraphQL request to Instagram with fresh session...")
             
-            # Make POST request with credentials (important!)
-            response = self.session.post(
+            # Make POST request exactly like the working implementation
+            # Fresh session mimics browser behavior better
+            response = session.post(
                 graphql_url,
                 headers=headers,
                 data=body,
-                timeout=30
+                timeout=30,
+                allow_redirects=True  # Equivalent to mode: "cors"
             )
             
             print(f"[INFO] Instagram response status: {response.status_code}")
@@ -191,6 +238,9 @@ class InstagramGraphQLClient:
         """Download video directly from Instagram's CDN with proper headers"""
         
         try:
+            # Use fresh session for download too
+            session = self._create_fresh_session()
+            
             # Use appropriate headers for video download
             download_headers = {
                 "User-Agent": "Mozilla/5.0 (Linux; Android 11; SAMSUNG SM-G973U) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/14.2 Chrome/87.0.4280.141 Mobile Safari/537.36",
@@ -200,7 +250,7 @@ class InstagramGraphQLClient:
                 "Range": "bytes=0-",  # Support partial content
             }
             
-            response = self.session.get(
+            response = session.get(
                 video_url,
                 headers=download_headers,
                 stream=True,
