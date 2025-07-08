@@ -6,6 +6,7 @@ import time
 import random
 from datetime import datetime, timedelta
 from typing import Dict, Any
+from urllib.parse import urlparse
 from yt_dlp import YoutubeDL
 import shutil
 from supabase import create_client, Client
@@ -119,8 +120,6 @@ async def extract_and_upload_audio(url: str, user_id: str) -> Dict[str, Any]:
 
 async def apply_rate_limiting(url: str):
     """Apply smart rate limiting based on platform and configuration"""
-    from urllib.parse import urlparse
-    
     domain = urlparse(url).netloc.lower()
     current_time = time.time()
     
@@ -156,9 +155,6 @@ def get_platform_from_url(url: str) -> str:
 
 def get_platform_specific_options(url: str) -> dict:
     """Get platform-specific yt-dlp options based on configuration"""
-    from urllib.parse import urlparse
-    import random
-    
     platform = get_platform_from_url(url)
     domain = urlparse(url).netloc.lower()
     
@@ -297,6 +293,8 @@ async def download_video(url: str, session_dir: str) -> str:
         try:
             print(f"[INFO] Trying download strategy {i+1}: {format_str}")
             
+
+            
             # Add random delay to appear more human (especially important for Instagram)
             platform = get_platform_from_url(url)
             domain = urlparse(url).netloc.lower()
@@ -305,9 +303,6 @@ async def download_video(url: str, session_dir: str) -> str:
                 delay = random.uniform(*delay_range)
                 print(f"[INFO] Adding {delay:.1f}s human-like delay for {platform}")
                 await asyncio.sleep(delay)
-            
-            # Add import for urlparse in the function scope
-            from urllib.parse import urlparse
             
             # Run yt-dlp in executor to avoid blocking
             loop = asyncio.get_event_loop()
