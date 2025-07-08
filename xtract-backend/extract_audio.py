@@ -299,25 +299,16 @@ async def download_instagram_video_graphql(url: str, session_dir: str) -> str:
         
     except InstagramGraphQLError as e:
         print(f"[ERROR] Instagram GraphQL error: {str(e)}")
-        # Provide user-friendly error messages based on Instagram GraphQL errors
-        error_msg = str(e).lower()
-        if "rate limit" in error_msg or "429" in error_msg:
-            raise Exception(USER_ERROR_MESSAGES['instagram_rate_limit'])
-        elif "not found" in error_msg or "404" in error_msg:
-            raise Exception("Instagram post not found or is private. Please check the URL.")
-        elif "not a video" in error_msg:
-            raise Exception("This Instagram post is not a video. Please provide a video post URL.")
-        elif "unauthorized" in error_msg or "401" in error_msg:
-            raise Exception("Instagram blocked the request. Please try again later.")
-        else:
-            raise Exception(f"Instagram error: {str(e)}")
+        # Pass through the actual Instagram error to the mobile app for debugging
+        raise Exception(f"Instagram API Response: {str(e)}")
     
     except Exception as e:
         print(f"[ERROR] Instagram download failed: {str(e)}")
         # Don't wrap InstagramGraphQLError again
         if isinstance(e, InstagramGraphQLError):
             raise
-        raise Exception(f"Failed to download Instagram video: {str(e)}")
+        # Pass through actual error to mobile app
+        raise Exception(f"Instagram Download Error: {str(e)}")
 
 async def download_video_ytdlp(url: str, session_dir: str) -> str:
     """Download video using yt-dlp with enhanced error handling and rate limiting"""

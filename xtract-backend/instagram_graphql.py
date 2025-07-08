@@ -176,39 +176,45 @@ class InstagramGraphQLClient:
             print(f"[INFO] Instagram response status: {response.status_code}")
             print(f"[DEBUG] Response headers: {dict(response.headers)}")
             
+            # CRITICAL: Log the actual response content for debugging
+            response_text = response.text
+            print(f"[DEBUG] Raw response length: {len(response_text)}")
+            print(f"[DEBUG] Raw response (first 1000 chars): {response_text[:1000]}")
+            
             # Handle various response codes like the working implementation
             if response.status_code == 200:
                 try:
                     data = response.json()
                     print(f"[DEBUG] Response data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+                    print(f"[DEBUG] Full response data: {json.dumps(data, indent=2)}")
                 except json.JSONDecodeError as je:
                     print(f"[ERROR] JSON decode error: {je}")
-                    print(f"[DEBUG] Raw response text (first 500 chars): {response.text[:500]}")
+                    print(f"[DEBUG] Raw response text (first 1000 chars): {response.text[:1000]}")
                     raise InstagramGraphQLError("Invalid JSON response from Instagram")
                 
                 # Check for GraphQL data structure exactly like the working version
                 if not data.get('data'):
                     print(f"[ERROR] No 'data' key in response: {data}")
-                    raise InstagramGraphQLError("Post not found")
+                    raise InstagramGraphQLError(f"Instagram Response Missing Data: {json.dumps(data)}")
                     
                 if not data['data'].get('xdt_shortcode_media'):
                     print(f"[ERROR] No 'xdt_shortcode_media' in data: {data['data']}")
-                    raise InstagramGraphQLError("Post not found")
+                    raise InstagramGraphQLError(f"Instagram Response Missing Media: {json.dumps(data['data'])}")
                 
                 media = data['data']['xdt_shortcode_media']
                 
                 if not media:
-                    raise InstagramGraphQLError("Post not found")
+                    raise InstagramGraphQLError(f"Instagram Media is Null: {json.dumps(data['data'])}")
                 
                 if not media.get('is_video', False):
                     print(f"[ERROR] Post is not a video. is_video: {media.get('is_video')}")
-                    raise InstagramGraphQLError("Post is not a video")
+                    raise InstagramGraphQLError(f"Post is not a video. Post type: {media.get('__typename', 'unknown')}, is_video: {media.get('is_video')}")
                 
                 # Extract video information
                 video_url = media.get('video_url')
                 if not video_url:
                     print(f"[ERROR] No video_url in media: {list(media.keys())}")
-                    raise InstagramGraphQLError("Could not extract video URL")
+                    raise InstagramGraphQLError(f"No video URL in response. Available keys: {list(media.keys())}")
                 
                 result = {
                     'success': True,
@@ -228,14 +234,15 @@ class InstagramGraphQLClient:
                 
             elif response.status_code == 404:
                 print(f"[ERROR] Instagram returned 404 for shortcode: {shortcode}")
-                raise InstagramGraphQLError("Post not found")
+                print(f"[DEBUG] 404 Response text: {response.text}")
+                raise InstagramGraphQLError(f"Instagram 404 Error: {response.text}")
             elif response.status_code in [429, 401]:
                 print(f"[ERROR] Instagram rate limited or unauthorized: {response.status_code}")
-                print(f"[DEBUG] Response text: {response.text[:200]}")
-                raise InstagramGraphQLError("Rate limited by Instagram - please wait and try again")
+                print(f"[DEBUG] Rate limit response text: {response.text}")
+                raise InstagramGraphQLError(f"Instagram {response.status_code} Error: {response.text}")
             else:
-                print(f"[ERROR] Instagram API error {response.status_code}: {response.text[:200]}")
-                raise InstagramGraphQLError(f"Instagram API error: {response.status_code}")
+                print(f"[ERROR] Instagram API error {response.status_code}: {response.text}")
+                raise InstagramGraphQLError(f"Instagram {response.status_code} Error: {response.text}")
                 
         except requests.exceptions.RequestException as e:
             print(f"[ERROR] Network error: {e}")
@@ -244,6 +251,9 @@ class InstagramGraphQLClient:
             if isinstance(e, InstagramGraphQLError):
                 raise
             print(f"[ERROR] Unexpected error: {e}")
+            print(f"[DEBUG] Exception type: {type(e)}")
+            import traceback
+            print(f"[DEBUG] Full traceback: {traceback.format_exc()}")
             raise InstagramGraphQLError(f"Unexpected error: {str(e)}")
     
     def download_video_direct(self, video_url: str, output_path: str) -> bool:
