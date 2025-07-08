@@ -359,10 +359,10 @@ async def download_video_ytdlp(url: str, session_dir: str) -> str:
             
 
             
-            # Add random delay to appear more human (especially important for Instagram)
+            # Add random delay to appear more human for social platforms
             platform = get_platform_from_url(url)
             domain = urlparse(url).netloc.lower()
-            if platform in ['instagram', 'tiktok'] and i > 0:
+            if platform in ['tiktok'] and i > 0:  # Instagram never uses yt-dlp
                 delay_range = RANDOM_DELAYS.get(domain, RANDOM_DELAYS['default'])
                 delay = random.uniform(*delay_range)
                 print(f"[INFO] Adding {delay:.1f}s human-like delay for {platform}")
