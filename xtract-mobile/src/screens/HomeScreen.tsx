@@ -16,7 +16,7 @@ import { SettingsIcon, PlayIcon } from '../components';
 import { colors, transparentColors } from '../styles/colors';
 import { globalStyles } from '../styles/globalStyles';
 import { AudioService, BackendService } from '../services/supabase';
-import { URLSchemeService } from '../services/urlScheme';
+import { UrlSchemeService } from '../services/urlScheme';
 import { SharedUrlManager } from '../services/sharedUrlManager';
 import { isValidVideoUrl } from '../utils/videoUtils';
 import { AudioFile } from '../types';
@@ -53,9 +53,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     const subscription = SharedUrlManager.addPendingUrlListener((url: string) => {
       // Validate that it's a video URL
       if (isValidVideoUrl(url)) {
-        handleSharedURL(url);
+        handleSharedUrl(url);
       } else {
-        Alert.alert('Invalid URL', 'Please share a valid video URL from Instagram, TikTok, or YouTube.');
+        Alert.alert('Invalid URL', 'Please share a valid video URL from a supported video platform.');
       }
     });
 
@@ -70,9 +70,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
       if (pendingUrl) {
         // Validate that it's a video URL
         if (isValidVideoUrl(pendingUrl)) {
-          handleSharedURL(pendingUrl);
+          handleSharedUrl(pendingUrl);
         } else {
-          Alert.alert('Invalid URL', 'Please share a valid video URL from Instagram, TikTok, or YouTube.');
+          Alert.alert('Invalid URL', 'Please share a valid video URL from a supported video platform.');
         }
       }
     } catch (error) {
@@ -81,30 +81,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   };
 
   const setupURLSchemeListener = () => {
-    const removeListener = URLSchemeService.addListener((url) => {
-      handleSharedURL(url);
-    });
-
-    // Check for pending shared URL on mount
-    URLSchemeService.getPendingSharedURL().then((url) => {
-      if (url) {
-        handleSharedURL(url);
+    UrlSchemeService.setUrlHandler({
+      handleUrl: (url: string) => {
+        handleSharedUrl(url);
       }
     });
 
-    return removeListener;
+    return UrlSchemeService.initialize();
   };
 
-  const handleSharedURL = async (url: string) => {
-    // Show immediate feedback to user
-    Alert.alert('Processing Video', 'Extracting audio from shared video...', [], { cancelable: false });
+  const handleSharedUrl = async (url: string) => {
+    console.log('Processing shared URL:', url);
     
-    // Automatically process the video
-    try {
+    // Validate that it's a video URL
+    if (isValidVideoUrl(url)) {
       await processVideo(url);
-      // Success alert is handled in processVideo()
-    } catch (error) {
-      // Error alert is handled in processVideo()
+    } else {
+      Alert.alert('Invalid URL', 'Please share a valid video URL from a supported video platform.');
+    }
+  };
+
+  const handlePendingUrl = async (pendingUrl: string) => {
+    console.log('Processing pending URL:', pendingUrl);
+    
+    // Validate that it's a video URL
+    if (isValidVideoUrl(pendingUrl)) {
+      await processVideo(pendingUrl);
+    } else {
+      Alert.alert('Invalid URL', 'Please share a valid video URL from a supported video platform.');
     }
   };
 
@@ -248,7 +252,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
               <View style={styles.emptyState}>
                 <Text style={styles.emptyText}>No audio files yet</Text>
                 <Text style={styles.emptySubtext}>
-                  Share a video from Instagram, TikTok, or YouTube to get started!
+                  Share a video from any supported platform to get started!
                 </Text>
               </View>
             ) : (

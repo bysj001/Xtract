@@ -27,66 +27,26 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
         
+        <!-- Handle shared text content (URLs, messages, etc.) -->
         <intent-filter>
             <action android:name="android.intent.action.SEND" />
             <category android:name="android.intent.category.DEFAULT" />
             <data android:mimeType="text/plain" />
         </intent-filter>
         
-        <intent-filter android:autoVerify="true">
-            <action android:name="android.intent.action.VIEW" />
+        <!-- Handle shared URLs generically -->
+        <intent-filter>
+            <action android:name="android.intent.action.SEND" />
             <category android:name="android.intent.category.DEFAULT" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="https" 
-                  android:host="www.instagram.com" />
+            <data android:mimeType="text/*" />
         </intent-filter>
         
-        <intent-filter android:autoVerify="true">
+        <!-- Custom URL scheme for internal app linking -->
+        <intent-filter>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.DEFAULT" />
             <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="https" 
-                  android:host="instagram.com" />
-        </intent-filter>
-        
-        <intent-filter android:autoVerify="true">
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.DEFAULT" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="https" 
-                  android:host="www.tiktok.com" />
-        </intent-filter>
-        
-        <intent-filter android:autoVerify="true">
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.DEFAULT" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="https" 
-                  android:host="vm.tiktok.com" />
-        </intent-filter>
-        
-        <intent-filter android:autoVerify="true">
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.DEFAULT" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="https" 
-                  android:host="www.youtube.com" />
-        </intent-filter>
-        
-        <intent-filter android:autoVerify="true">
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.DEFAULT" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="https" 
-                  android:host="youtube.com" />
-        </intent-filter>
-        
-        <intent-filter android:autoVerify="true">
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.DEFAULT" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="https" 
-                  android:host="youtu.be" />
+            <data android:scheme="xtract" />
         </intent-filter>
       </activity>
     </application>

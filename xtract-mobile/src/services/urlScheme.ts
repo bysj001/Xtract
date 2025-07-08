@@ -1,91 +1,45 @@
 import { Linking } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isValidVideoUrl } from '../utils/videoUtils';
 
-export class URLSchemeService {
-  private static listeners: Array<(url: string) => void> = [];
+export interface UrlHandler {
+  handleUrl: (url: string) => void;
+}
 
-  static initialize() {
-    // Handle app launch from URL scheme
-    Linking.getInitialURL().then((url) => {
-      if (url) {
-        this.handleURL(url);
-      }
-    });
+export class UrlSchemeService {
+  private static urlHandler: UrlHandler | null = null;
 
-    // Handle URL scheme when app is already running
-    const subscription = Linking.addEventListener('url', (event) => {
-      this.handleURL(event.url);
-    });
-
-    return subscription;
+  static setUrlHandler(handler: UrlHandler) {
+    this.urlHandler = handler;
   }
 
-  static addListener(callback: (url: string) => void) {
-    this.listeners.push(callback);
-    return () => {
-      const index = this.listeners.indexOf(callback);
-      if (index > -1) {
-        this.listeners.splice(index, 1);
+  static initialize() {
+    // Handle app launch from URL
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        this.handleIncomingUrl(url);
       }
+    });
+
+    // Handle app resume from URL
+    const handleUrl = (event: { url: string }) => {
+      this.handleIncomingUrl(event.url);
+    };
+
+    Linking.addEventListener('url', handleUrl);
+
+    return () => {
+      Linking.removeAllListeners('url');
     };
   }
 
-  private static handleURL(url: string) {
-    // Handle direct video URLs (from Android intent filters)
-    if (url.includes('youtube.com') || url.includes('youtu.be') || 
-        url.includes('instagram.com') || url.includes('tiktok.com')) {
-      
-      // Store the shared URL for the app to handle
-      AsyncStorage.setItem('pending_shared_url', url);
-      
-      // Notify listeners immediately
-      this.listeners.forEach(listener => {
-        listener(url);
-      });
-      return;
-    }
+  private static handleIncomingUrl(url: string) {
+    console.log('Received URL:', url);
     
-    // Parse xtract://share?url=... format (for custom URL schemes)
-    if (url.startsWith('xtract://share')) {
-      const urlParams = new URLSearchParams(url.split('?')[1]);
-      const sharedUrl = urlParams.get('url');
-      
-      if (sharedUrl) {
-        // Store the shared URL for the app to handle
-        AsyncStorage.setItem('pending_shared_url', decodeURIComponent(sharedUrl));
-        
-        // Notify listeners
-        this.listeners.forEach(listener => {
-          listener(decodeURIComponent(sharedUrl));
-        });
+    // Handle direct video URLs (from Android intent filters)
+    if (isValidVideoUrl(url)) {
+      if (this.urlHandler) {
+        this.urlHandler.handleUrl(url);
       }
-    }
-  }
-
-  static async getPendingSharedURL(): Promise<string | null> {
-    try {
-      const url = await AsyncStorage.getItem('pending_shared_url');
-      if (url) {
-        // Clear it after reading
-        await AsyncStorage.removeItem('pending_shared_url');
-        return url;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error getting pending shared URL:', error);
-      return null;
-    }
-  }
-
-  // For iOS: Check UserDefaults for shared data from Share Extension
-  static async checkSharedUserDefaults(): Promise<string | null> {
-    try {
-      // This would require a native module to read from UserDefaults
-      // For now, we'll rely on the URL scheme approach
-      return null;
-    } catch (error) {
-      console.error('Error checking shared UserDefaults:', error);
-      return null;
     }
   }
 } 

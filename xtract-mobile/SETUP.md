@@ -56,14 +56,14 @@ To add the iOS Share Extension to your Xcode project:
 
 ### Android Share Target
 1. Build and install the app
-2. Go to Instagram/TikTok/YouTube
+2. Go to Valid Url
 3. Share a video → Select "Xtract" from share menu
 4. App should open with video URL detected
 
 ### iOS Share Extension
 1. Add Share Extension target to Xcode project (see above)
 2. Build and install the app
-3. Go to Safari/Instagram/TikTok/YouTube
+3. Go to Valid URL
 4. Share a video → Select "Xtract" from share menu
 5. App should open with video URL detected
 

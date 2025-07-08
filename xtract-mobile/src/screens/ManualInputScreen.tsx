@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Input, CameraIcon, MusicalNotesIcon } from '../components';
+import { Input, Icon } from '../components';
 import { colors, transparentColors } from '../styles/colors';
 import { globalStyles } from '../styles/globalStyles';
 import { BackendService } from '../services/supabase';
@@ -44,7 +44,7 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
     if (!isValidVideoUrl(url)) {
       Alert.alert(
         'Invalid URL',
-        'Please enter a valid Instagram, TikTok, or YouTube URL'
+        'Please enter a valid URL'
       );
       return;
     }
@@ -100,39 +100,45 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
             <View style={styles.header}>
               <Text style={styles.title}>Enter Video URL</Text>
               <Text style={styles.subtitle}>
-                Paste a link from Instagram, TikTok, or YouTube
+                Paste a link from any supported video platform
               </Text>
             </View>
 
             <View style={styles.content}>
               <View style={styles.inputContainer}>
                 <Input
-                  placeholder="https://www.instagram.com/p/..."
+                  placeholder="https://www.example.com/video/..."
                   value={url}
                   onChangeText={setUrl}
-                  multiline
-                  numberOfLines={3}
-                  style={styles.urlInput}
+                  multiline={false}
+                  style={styles.input}
                 />
                 
                 <TouchableOpacity
-                  style={globalStyles.buttonOutline}
+                  style={[globalStyles.buttonOutline, styles.pasteButton]}
                   onPress={handlePaste}
+                  disabled={loading}
                 >
-                  <Text style={globalStyles.buttonTextOutline}>Paste from Clipboard</Text>
+                  <Text style={globalStyles.buttonTextOutline}>
+                    Paste from Clipboard
+                  </Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.examplesContainer}>
-                <Text style={styles.examplesTitle}>Supported platforms:</Text>
+                <Text style={styles.examplesTitle}>Supported video platforms:</Text>
                 <View style={styles.platformList}>
                   <View style={styles.platformItem}>
-                    <CameraIcon size={20} color={colors.primary} />
-                    <Text style={styles.platformName}>Instagram</Text>
+                    <Icon name="play-circle" size={16} color={colors.primary} />
+                    <Text style={styles.platformName}>Short-form videos</Text>
                   </View>
                   <View style={styles.platformItem}>
-                    <MusicalNotesIcon size={20} color={colors.primary} />
-                    <Text style={styles.platformName}>TikTok</Text>
+                    <Icon name="videocam" size={16} color={colors.primary} />
+                    <Text style={styles.platformName}>Social media content</Text>
+                  </View>
+                  <View style={styles.platformItem}>
+                    <Icon name="globe" size={16} color={colors.primary} />
+                    <Text style={styles.platformName}>Video sharing sites</Text>
                   </View>
                 </View>
               </View>
@@ -202,9 +208,12 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: 30,
   },
-  urlInput: {
+  input: {
     minHeight: 80,
     textAlignVertical: 'top',
+    marginBottom: 15,
+  },
+  pasteButton: {
     marginBottom: 15,
   },
   examplesContainer: {

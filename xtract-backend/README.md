@@ -1,222 +1,200 @@
-# Xtract Backend API
+# Xtract Backend - Audio Extraction Service
 
-FastAPI backend for extracting audio from video URLs and storing to Supabase. Designed for deployment on Railway.
+A FastAPI-based service that extracts audio from social media videos (Instagram, TikTok, YouTube) and uploads them to Supabase storage.
 
 ## Features
 
-- Extract audio from TikTok, Instagram, YouTube, and other video platforms
-- Store extracted MP3 files in Supabase Storage
-- Track processing jobs with status updates
-- User-based file organization
-- Health monitoring endpoints
+- Extract audio from Instagram, TikTok, and YouTube videos
+- Smart rate limiting to avoid platform blocks
+- Platform-specific optimizations
+- Supabase integration for storage and job tracking
+- User-friendly error messages
+
+## Installation & Setup
+
+### Prerequisites
+- Python 3.8+
+- ffmpeg installed on the system
+- Supabase project with storage bucket named 'audio-files'
+
+### Local Development
+
+1. Create and activate virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Configure Supabase:
+- Replace `SUPABASE_KEY` in `extract_audio.py` with your service role key
+- Ensure your Supabase project has an 'audio-files' storage bucket
+
+4. Run the server:
+```bash
+python main.py
+```
+
+The API will be available at `http://localhost:8000`
+
+### Docker Deployment
+
+1. Build the Docker image:
+```bash
+docker build -t xtract-backend .
+```
+
+2. Run the container:
+```bash
+docker run -p 8000:8000 xtract-backend
+```
 
 ## API Endpoints
 
-### Health Check
-```
-GET /
-GET /health
-```
+### POST /extract-audio
+Extract audio from a video URL.
 
-### Extract Audio
-```
-POST /extract
-```
-**Request Body:**
+**Request:**
 ```json
 {
-  "url": "https://www.tiktok.com/@user/video/123456789",
-  "user_id": "user-uuid-here"
+  "url": "https://www.instagram.com/p/ABC123/",
+  "user_id": "user-uuid"
 }
 ```
 
 **Response:**
 ```json
 {
-  "success": true,
   "job_id": "job-uuid",
-  "audio_file_id": "file-uuid", 
-  "message": "Audio extraction completed successfully"
+  "audio_file_id": "file-uuid"
 }
 ```
 
-## Deployment on Railway
+### GET /health
+Health check endpoint.
 
-### Prerequisites
-- Railway account
-- Supabase project with `audio_files` table and `audio-files` storage bucket
-- Supabase `processing_jobs` table
+## Platform Support & Rate Limiting
 
-### Quick Deploy
+The service includes intelligent rate limiting to prevent blocks:
 
-1. **Connect to Railway:**
-   ```bash
-   # Install Railway CLI
-   npm install -g @railway/cli
-   
-   # Login to Railway
-   railway login
-   
-   # Create new project
-   railway init
-   ```
+### Instagram
+- **Rate Limit:** 8 seconds between requests
+- **Retries:** 2 attempts max
+- **Delay:** 3-7 second random delays
+- **Special handling:** Mobile user agent, Instagram-specific headers
 
-2. **Deploy:**
-   ```bash
-   # In the xtract-backend directory
-   railway up
-   ```
+### TikTok
+- **Rate Limit:** 5 seconds between requests
+- **Retries:** 3 attempts max
+- **Delay:** 1-3 second random delays
 
-3. **Configure Start Command:**
-   In Railway dashboard, set the start command to:
-   ```
-   uvicorn main:app --host 0.0.0.0 --port $PORT
-   ```
+### YouTube
+- **Rate Limit:** 2 seconds between requests
+- **Retries:** 3 attempts max
+- **Delay:** 0.5-2 second random delays
 
-4. **Environment Variables:**
-   No additional environment variables needed - Supabase credentials are embedded in the code.
+## Troubleshooting
 
-### Alternative Deployment Steps
+### Instagram Rate Limit Errors
 
-1. **Push to GitHub:**
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial backend setup"
-   git push origin main
-   ```
+If you see "Instagram Rate Limit Reached" errors:
 
-2. **Connect Railway to GitHub:**
-   - Go to Railway dashboard
-   - Create new project from GitHub repo
-   - Select the `xtract-backend` directory as root
+1. **Wait 5-10 minutes** before trying again
+2. **Process other platforms** (TikTok/YouTube) in the meantime
+3. **Avoid rapid-fire requests** - wait between Instagram videos
+4. **The limit resets automatically** after a short break
 
-3. **Railway will automatically:**
-   - Detect Python environment
-   - Install dependencies from `requirements.txt`
-   - Deploy with the correct start command
+This is normal behavior and protects the service from being blocked by Instagram.
 
-## Local Development
+### Common Error Messages
 
-### Setup
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+#### "Instagram Rate Limit Reached"
+- **Cause:** Too many Instagram requests in short time
+- **Solution:** Wait 5-10 minutes, then try again
 
-# Install dependencies
-pip install -r requirements.txt
+#### "Video Processing Failed"
+- **Cause:** Private video, deleted content, or temporary issues
+- **Solution:** Check the video URL in your browser, wait and retry
 
-# Run development server
-uvicorn main:app --reload --port 8000
+#### "All download strategies failed"
+- **Cause:** Platform restrictions or connectivity issues
+- **Solution:** Try a different video or wait a few minutes
+
+### Best Practices
+
+1. **Batch Processing:** Space out Instagram video requests by at least 30 seconds
+2. **Mix Platforms:** Alternate between Instagram, TikTok, and YouTube
+3. **Error Handling:** Implement retry logic in your client with exponential backoff
+4. **Monitor Logs:** Check server logs for detailed error information
+
+## Configuration
+
+Rate limits and platform settings can be adjusted in `config.py`:
+
+```python
+RATE_LIMITS = {
+    'instagram.com': 8,     # Increase for stricter rate limiting
+    'tiktok.com': 5,
+    'youtube.com': 2,
+    'default': 3
+}
 ```
 
-### Test the API
-```bash
-# Health check
-curl http://localhost:8000/
+## Database Schema
 
-# Test extraction
-curl -X POST http://localhost:8000/extract \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "user_id": "test-user"}'
-```
+The service uses these Supabase tables:
 
-## System Requirements
-
-### Railway Environment
-- Python 3.10+
-- FFmpeg (automatically available on Railway)
-- Internet access for video downloads
-
-### Dependencies
-- FastAPI - Web framework
-- yt-dlp - Video downloading
-- supabase - Database and storage
-- psutil - System monitoring
-
-## File Structure
-
-```
-xtract-backend/
-├── main.py              # FastAPI application
-├── extract_audio.py     # Audio processing logic
-├── requirements.txt     # Python dependencies
-├── .gitignore          # Git ignore rules
-└── README.md           # This file
-```
-
-## Supabase Integration
-
-### Required Tables
-
-**audio_files:**
-```sql
-CREATE TABLE audio_files (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  filename TEXT NOT NULL,
-  file_url TEXT NOT NULL,
-  file_size INTEGER NOT NULL,
-  duration INTEGER,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-**processing_jobs:**
+### processing_jobs
 ```sql
 CREATE TABLE processing_jobs (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  original_url TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
-  result_audio_file_id UUID REFERENCES audio_files(id),
-  error_message TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    original_url TEXT NOT NULL,
+    status TEXT NOT NULL, -- 'pending', 'processing', 'completed', 'failed'
+    result_audio_file_id UUID,
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 ```
 
-### Storage Bucket
-- Bucket name: `audio-files`
-- Public access: Enabled
-- File size limit: Configure as needed
-
-## Mobile App Integration
-
-Update the mobile app's backend URL in `src/services/supabase.ts`:
-
-```typescript
-private static BACKEND_URL = 'https://your-railway-app.railway.app';
+### audio_files
+```sql
+CREATE TABLE audio_files (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    filename TEXT NOT NULL,
+    file_url TEXT NOT NULL,
+    file_size INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 ```
 
-## Error Handling
+## Development
 
-The API returns detailed error messages for:
-- Invalid URLs
-- Missing user IDs
-- Video download failures
-- Audio extraction failures
-- Supabase upload errors
+### Testing
+```bash
+# Test the extraction function directly
+python extract_audio.py
+```
 
-## Monitoring
+### Adding New Platforms
+1. Add domain to `RATE_LIMITS` in `config.py`
+2. Add user agent to `USER_AGENTS`
+3. Update `get_platform_from_url()` function
+4. Add platform-specific options in `get_platform_specific_options()`
 
-- Health endpoints provide system status
-- Processing jobs track operation status
-- Logs are available in Railway dashboard
+## Security Notes
 
-## Security
+- **Service Role Key:** Keep your Supabase service role key secure
+- **Rate Limiting:** Don't disable rate limiting - it protects against blocks
+- **User Input:** All URLs are validated before processing
 
-- CORS configured for mobile app access
-- Input validation on all endpoints
-- Temporary file cleanup
-- No sensitive credentials in code (uses Supabase public key)
+## License
 
-## Support
-
-For issues with:
-- Video downloads: Check yt-dlp compatibility
-- Audio extraction: Ensure FFmpeg is available
-- Storage uploads: Verify Supabase configuration
-- Deployment: Check Railway logs 
+[Your License Here] 

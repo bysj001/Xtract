@@ -2,12 +2,15 @@ import os
 import uuid
 import subprocess
 import asyncio
-from datetime import datetime
+import time
+import random
+from datetime import datetime, timedelta
 from typing import Dict, Any
 from yt_dlp import YoutubeDL
 import shutil
 from supabase import create_client, Client
 from pathlib import Path
+from config import RATE_LIMITS, USER_AGENTS, MAX_RETRIES, RANDOM_DELAYS, USER_ERROR_MESSAGES
 
 # Supabase configuration (same as your mobile/desktop apps)
 SUPABASE_URL = "https://wgskngtfekehqpnbbanz.supabase.co"
@@ -18,6 +21,9 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Global rate limiting storage (in production, use Redis or database)
+last_request_times = {}
 
 async def extract_and_upload_audio(url: str, user_id: str) -> Dict[str, Any]:
     """
@@ -34,6 +40,9 @@ async def extract_and_upload_audio(url: str, user_id: str) -> Dict[str, Any]:
     session_dir = None
     
     try:
+        # Apply rate limiting before starting
+        await apply_rate_limiting(url)
+        
         # Create processing job in Supabase
         job_response = supabase.table('processing_jobs').insert({
             'user_id': user_id,
@@ -108,9 +117,120 @@ async def extract_and_upload_audio(url: str, user_id: str) -> Dict[str, Any]:
             shutil.rmtree(session_dir, ignore_errors=True)
             print(f"[INFO] Cleaned up temporary files: {session_dir}")
 
+async def apply_rate_limiting(url: str):
+    """Apply smart rate limiting based on platform and configuration"""
+    from urllib.parse import urlparse
+    
+    domain = urlparse(url).netloc.lower()
+    current_time = time.time()
+    
+    # Get platform-specific rate limit
+    rate_limit = RATE_LIMITS.get(domain, RATE_LIMITS['default'])
+    
+    # Check if we need to wait
+    if domain in last_request_times:
+        time_since_last = current_time - last_request_times[domain]
+        if time_since_last < rate_limit:
+            wait_time = rate_limit - time_since_last
+            print(f"[INFO] Rate limiting: waiting {wait_time:.2f}s for {domain}")
+            await asyncio.sleep(wait_time)
+    
+    # Update last request time
+    last_request_times[domain] = time.time()
+
+def get_platform_from_url(url: str) -> str:
+    """Detect platform from URL"""
+    url_lower = url.lower()
+    if 'instagram.com' in url_lower:
+        return 'instagram'
+    elif 'tiktok.com' in url_lower:
+        return 'tiktok'
+    elif 'youtube.com' in url_lower or 'youtu.be' in url_lower:
+        return 'youtube'
+    else:
+        return 'default'
+
+def get_platform_specific_options(url: str) -> dict:
+    """Get platform-specific yt-dlp options based on configuration"""
+    from urllib.parse import urlparse
+    
+    platform = get_platform_from_url(url)
+    domain = urlparse(url).netloc.lower()
+    
+    options = {
+        'socket_timeout': 60,
+        'retries': MAX_RETRIES.get(domain, MAX_RETRIES['default']),
+        'fragment_retries': 3,
+        'extract_flat': False,
+        'writethumbnail': False,
+        'writeinfojson': False,
+        'ignoreerrors': False,
+    }
+    
+    # Get appropriate user agent
+    user_agent = USER_AGENTS.get(platform, USER_AGENTS['default'])
+    
+    if platform == 'instagram':
+        options.update({
+            'extractor_args': {
+                'instagram': {
+                    'comment_count': 0,
+                    'skip_comments': True,
+                }
+            },
+            'http_headers': {
+                'User-Agent': user_agent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            },
+            'retry_sleep_functions': {
+                'extractor': lambda n: min(4 ** n, 60),  # Exponential backoff
+            },
+        })
+    elif platform == 'tiktok':
+        options.update({
+            'http_headers': {
+                'User-Agent': user_agent,
+                'Referer': 'https://www.tiktok.com/',
+            },
+        })
+    else:
+        options.update({
+            'http_headers': {
+                'User-Agent': user_agent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+        })
+    
+    return options
+
+def get_user_friendly_error(url: str, error_msg: str) -> str:
+    """Convert technical error messages to user-friendly ones"""
+    error_lower = error_msg.lower()
+    
+    if 'instagram' in url.lower():
+        if any(keyword in error_lower for keyword in ['login required', 'rate-limit', 'not available', 'rate limit']):
+            return USER_ERROR_MESSAGES['instagram_rate_limit']
+    
+    if any(keyword in error_lower for keyword in ['rate-limit', 'too many requests', 'rate limit']):
+        return USER_ERROR_MESSAGES['generic_rate_limit']
+    
+    return USER_ERROR_MESSAGES['extraction_failed']
+
 async def download_video(url: str, session_dir: str) -> str:
-    """Download video using yt-dlp"""
+    """Download video using yt-dlp with enhanced error handling and rate limiting"""
     video_path_template = os.path.join(session_dir, 'video.%(ext)s')
+    
+    # Get platform-specific options
+    platform_options = get_platform_specific_options(url)
     
     # Try multiple format strategies for better compatibility
     format_strategies = [
@@ -123,12 +243,33 @@ async def download_video(url: str, session_dir: str) -> str:
     ]
     
     for i, format_str in enumerate(format_strategies):
+        # Base yt-dlp options
         ydl_opts = {
             'outtmpl': video_path_template,
             'format': format_str,
             'quiet': True,
             'no_warnings': True,
+            # Enhanced options for better compatibility
+            'socket_timeout': 60,
+            'retries': 3,
+            'fragment_retries': 3,
+            'extract_flat': False,
+            'writethumbnail': False,
+            'writeinfojson': False,
+            'ignoreerrors': False,
+            # Default headers that look more like a real browser
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
         }
+        
+        # Merge platform-specific options
+        ydl_opts.update(platform_options)
         
         # Only add merge format for strategies that might need it
         if 'bestvideo+bestaudio' in format_str:
@@ -136,6 +277,18 @@ async def download_video(url: str, session_dir: str) -> str:
         
         try:
             print(f"[INFO] Trying download strategy {i+1}: {format_str}")
+            
+            # Add random delay to appear more human
+            platform = get_platform_from_url(url)
+            domain = urlparse(url).netloc.lower()
+            if platform == 'instagram' and i > 0:
+                delay_range = RANDOM_DELAYS.get(domain, RANDOM_DELAYS['default'])
+                delay = random.uniform(*delay_range)
+                print(f"[INFO] Adding {delay:.1f}s delay for {platform}")
+                await asyncio.sleep(delay)
+            
+            # Add import for urlparse in the function scope
+            from urllib.parse import urlparse
             
             # Run yt-dlp in executor to avoid blocking
             loop = asyncio.get_event_loop()
@@ -149,10 +302,13 @@ async def download_video(url: str, session_dir: str) -> str:
                     return file_path
             
         except Exception as e:
-            print(f"[WARNING] Strategy {i+1} failed: {e}")
+            error_msg = str(e)
+            print(f"[WARNING] Strategy {i+1} failed: {error_msg}")
+            
             if i == len(format_strategies) - 1:
-                # This was the last strategy, re-raise the error
-                raise Exception(f"All download strategies failed. Last error: {e}")
+                # This was the last strategy, use user-friendly error message
+                user_friendly_error = get_user_friendly_error(url, error_msg)
+                raise Exception(user_friendly_error)
             continue
     
     raise Exception("No video file found after trying all download strategies")

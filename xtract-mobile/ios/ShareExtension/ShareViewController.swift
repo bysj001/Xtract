@@ -37,12 +37,16 @@ class ShareViewController: SLComposeServiceViewController {
     }
     
     private func extractVideoURL(from text: String) -> String? {
+        // Generic patterns that match common video URL structures without targeting specific platforms
         let patterns = [
-            "https?://(www\\.)?instagram\\.com/(p|reel|tv)/[a-zA-Z0-9_-]+",
-            "https?://(www\\.)?tiktok\\.com/@[a-zA-Z0-9._-]+/video/\\d+",
-            "https?://(www\\.)?youtube\\.com/watch\\?v=[a-zA-Z0-9_-]+",
-            "https?://youtu\\.be/[a-zA-Z0-9_-]+",
-            "https?://(vm\\.)?tiktok\\.com/[a-zA-Z0-9]+"
+            // Generic patterns for video content (posts, reels, videos, etc.)
+            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*[pP]/[a-zA-Z0-9_-]+", // Posts with /p/ pattern
+            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*[rR]eel[sS]?/[a-zA-Z0-9_-]+", // Reels pattern
+            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*[vV]ideo/[a-zA-Z0-9_-]+", // Video paths  
+            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*[wW]atch\\?.*[vV]=[a-zA-Z0-9_-]+", // Watch with video ID
+            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*[sS]horts/[a-zA-Z0-9_-]+", // Short-form videos
+            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*@[a-zA-Z0-9._-]+/[a-zA-Z0-9_-]+", // User content paths
+            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9_-]+", // Short URLs (like vm.platform.com/xyz)
         ]
         
         for pattern in patterns {
