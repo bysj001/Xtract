@@ -10,7 +10,7 @@ from yt_dlp import YoutubeDL
 import shutil
 from supabase import create_client, Client
 from pathlib import Path
-from config import RATE_LIMITS, USER_AGENTS, MAX_RETRIES, RANDOM_DELAYS, USER_ERROR_MESSAGES
+from config import RATE_LIMITS, USER_AGENTS, MAX_RETRIES, RANDOM_DELAYS, USER_ERROR_MESSAGES, BROWSER_OPTIONS, COOKIE_PLATFORMS
 
 # Supabase configuration (same as your mobile/desktop apps)
 SUPABASE_URL = "https://wgskngtfekehqpnbbanz.supabase.co"
@@ -150,9 +150,71 @@ def get_platform_from_url(url: str) -> str:
     else:
         return 'default'
 
+def get_working_browser() -> str:
+    """Find a browser that works for cookie extraction"""
+    import os
+    import platform
+    
+    system = platform.system().lower()
+    
+    # Browser paths for different systems
+    browser_paths = {
+        'darwin': {  # macOS
+            'chrome': [
+                '/Applications/Google Chrome.app',
+                '~/Applications/Google Chrome.app'
+            ],
+            'safari': ['/Applications/Safari.app'],
+            'firefox': [
+                '/Applications/Firefox.app',
+                '~/Applications/Firefox.app'
+            ],
+            'edge': ['/Applications/Microsoft Edge.app']
+        },
+        'linux': {
+            'chrome': [
+                '~/.config/google-chrome',
+                '~/.var/app/com.google.Chrome'  # Flatpak
+            ],
+            'firefox': ['~/.mozilla/firefox'],
+            'edge': ['~/.config/microsoft-edge']
+        },
+        'windows': {
+            'chrome': [
+                'C:\\Users\\*\\AppData\\Local\\Google\\Chrome\\User Data',
+                'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+            ],
+            'firefox': ['C:\\Users\\*\\AppData\\Roaming\\Mozilla\\Firefox'],
+            'edge': ['C:\\Users\\*\\AppData\\Local\\Microsoft\\Edge\\User Data']
+        }
+    }
+    
+    if system not in browser_paths:
+        return 'chrome'  # Default fallback
+    
+    # Check each browser in order of preference
+    for browser in BROWSER_OPTIONS:
+        if browser in browser_paths[system]:
+            paths = browser_paths[system][browser]
+            for path in paths:
+                expanded_path = os.path.expanduser(path)
+                if os.path.exists(expanded_path):
+                    print(f"[INFO] Found {browser} at {expanded_path}")
+                    return browser
+    
+    print("[INFO] No specific browser found, using chrome as default")
+    return 'chrome'
+
+def needs_cookies(url: str) -> bool:
+    """Check if platform typically requires cookies"""
+    from urllib.parse import urlparse
+    domain = urlparse(url).netloc.lower()
+    return COOKIE_PLATFORMS.get(domain, COOKIE_PLATFORMS['default'])
+
 def get_platform_specific_options(url: str) -> dict:
     """Get platform-specific yt-dlp options based on configuration"""
     from urllib.parse import urlparse
+    import random
     
     platform = get_platform_from_url(url)
     domain = urlparse(url).netloc.lower()
@@ -167,8 +229,10 @@ def get_platform_specific_options(url: str) -> dict:
         'ignoreerrors': False,
     }
     
-    # Get appropriate user agent
-    user_agent = USER_AGENTS.get(platform, USER_AGENTS['default'])
+    # Get rotating user agent (disabled cookies for mobile apps)
+    user_agent_list = USER_AGENTS.get(platform, USER_AGENTS['default'])
+    user_agent = random.choice(user_agent_list)
+    print(f"[INFO] Using {platform} user agent: {user_agent[:50]}...")
     
     if platform == 'instagram':
         options.update({
@@ -186,16 +250,24 @@ def get_platform_specific_options(url: str) -> dict:
                 'DNT': '1',
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
             },
             'retry_sleep_functions': {
-                'extractor': lambda n: min(4 ** n, 60),  # Exponential backoff
+                'extractor': lambda n: min(8 ** n, 120),  # Longer exponential backoff
             },
         })
     elif platform == 'tiktok':
         options.update({
             'http_headers': {
                 'User-Agent': user_agent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
                 'Referer': 'https://www.tiktok.com/',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
             },
         })
     else:
@@ -217,7 +289,15 @@ def get_user_friendly_error(url: str, error_msg: str) -> str:
     error_lower = error_msg.lower()
     
     if 'instagram' in url.lower():
-        if any(keyword in error_lower for keyword in ['login required', 'rate-limit', 'not available', 'rate limit']):
+        # Check for authentication/login issues first
+        if any(keyword in error_lower for keyword in [
+            'login required', 'authentication required', 'private content',
+            'unavailable content', 'access denied', 'forbidden', 'captcha'
+        ]):
+            return USER_ERROR_MESSAGES['instagram_auth_required']
+        
+        # Then check for rate limiting
+        if any(keyword in error_lower for keyword in ['rate-limit', 'not available', 'rate limit', 'too many requests']):
             return USER_ERROR_MESSAGES['instagram_rate_limit']
     
     if any(keyword in error_lower for keyword in ['rate-limit', 'too many requests', 'rate limit']):
@@ -243,32 +323,26 @@ async def download_video(url: str, session_dir: str) -> str:
     ]
     
     for i, format_str in enumerate(format_strategies):
+        # Get platform-specific options with rotating user agents
+        platform_options = get_platform_specific_options(url)
+        
         # Base yt-dlp options
         ydl_opts = {
             'outtmpl': video_path_template,
             'format': format_str,
             'quiet': True,
             'no_warnings': True,
-            # Enhanced options for better compatibility
-            'socket_timeout': 60,
-            'retries': 3,
+            # Enhanced options for mobile app backend
+            'socket_timeout': 90,  # Longer timeout for mobile
+            'retries': platform_options.get('retries', 2),
             'fragment_retries': 3,
             'extract_flat': False,
             'writethumbnail': False,
             'writeinfojson': False,
             'ignoreerrors': False,
-            # Default headers that look more like a real browser
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-            }
         }
         
-        # Merge platform-specific options
+        # Merge platform-specific options (including rotating user agents)
         ydl_opts.update(platform_options)
         
         # Only add merge format for strategies that might need it
@@ -278,13 +352,13 @@ async def download_video(url: str, session_dir: str) -> str:
         try:
             print(f"[INFO] Trying download strategy {i+1}: {format_str}")
             
-            # Add random delay to appear more human
+            # Add random delay to appear more human (especially important for Instagram)
             platform = get_platform_from_url(url)
             domain = urlparse(url).netloc.lower()
-            if platform == 'instagram' and i > 0:
+            if platform in ['instagram', 'tiktok'] and i > 0:
                 delay_range = RANDOM_DELAYS.get(domain, RANDOM_DELAYS['default'])
                 delay = random.uniform(*delay_range)
-                print(f"[INFO] Adding {delay:.1f}s delay for {platform}")
+                print(f"[INFO] Adding {delay:.1f}s human-like delay for {platform}")
                 await asyncio.sleep(delay)
             
             # Add import for urlparse in the function scope
@@ -305,8 +379,8 @@ async def download_video(url: str, session_dir: str) -> str:
             error_msg = str(e)
             print(f"[WARNING] Strategy {i+1} failed: {error_msg}")
             
+            # If this was the last strategy, provide user-friendly error
             if i == len(format_strategies) - 1:
-                # This was the last strategy, use user-friendly error message
                 user_friendly_error = get_user_friendly_error(url, error_msg)
                 raise Exception(user_friendly_error)
             continue
