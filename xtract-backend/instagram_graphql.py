@@ -34,18 +34,20 @@ class InstagramGraphQLClient:
         session = requests.Session()
         session.cookies.clear()
         
-        # CRITICAL: Set session to handle cookies automatically (like credentials: "include")
-        # This is the equivalent of fetch's credentials: "include"
+        # CRITICAL: Match fetch's credentials: "include" behavior exactly
+        # This ensures cookies are handled like a browser
         session.trust_env = False  # Don't use environment proxy settings
         
-        # Enable cookie jar for credentials: "include" behavior
-        # This ensures cookies are handled like a browser
+        # Configure session to automatically handle cookies (like credentials: "include")
+        # This is crucial for Instagram's authentication system
         
-        # Add some session-level headers that all requests should have
+        # Add session-level headers that all requests should have
         session.headers.update({
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
+            # CRITICAL: Set proper Origin header to match working implementation
+            'Origin': 'https://www.instagram.com',
         })
         
         return session
@@ -74,6 +76,14 @@ class InstagramGraphQLClient:
     def generate_request_body(self, shortcode: str) -> str:
         """Generate request body with EXACT values from working instagram-video-downloader"""
         
+        # CRITICAL: Use exact JSON formatting and boolean handling as the working version
+        variables_json = json.dumps({
+            "shortcode": shortcode,
+            "fetch_tagged_user_count": None,
+            "hoisted_comment_id": None,
+            "hoisted_reply_id": None,
+        }, separators=(',', ':'))  # Remove ensure_ascii=False to match original
+        
         # Use EXACT static values from working implementation - no randomization!
         # CRITICAL: Maintain EXACT parameter order from working implementation
         body_params = OrderedDict([
@@ -99,13 +109,8 @@ class InstagramGraphQLClient:
             ("__crn", "comet.igweb.PolarisPostRoute"),
             ("fb_api_caller_class", "RelayModern"),
             ("fb_api_req_friendly_name", "PolarisPostActionLoadPostQueryQuery"),
-                         ("variables", json.dumps({
-                 "shortcode": shortcode,
-                 "fetch_tagged_user_count": None,
-                 "hoisted_comment_id": None,
-                 "hoisted_reply_id": None,
-             }, separators=(',', ':'), ensure_ascii=False)),
-                         ("server_timestamps", True),  # Keep as boolean to match working version
+            ("variables", variables_json),
+            ("server_timestamps", "true"),  # CRITICAL: Use string "true" not boolean True
             ("doc_id", self.doc_id),
         ])
         
@@ -150,11 +155,16 @@ class InstagramGraphQLClient:
         try:
             print(f"[INFO] Making GraphQL request to Instagram with fresh session...")
             
-            # Make POST request exactly like the working implementation
-            # Set referrer as header to match fetch's referrer behavior
+            # CRITICAL: Set referrer header to match fetch's referrer behavior exactly
             headers['Referer'] = f"https://www.instagram.com/p/{shortcode}/"
             
-            # Fresh session mimics browser behavior better
+            # Debug the request (can be removed later)
+            print(f"[DEBUG] Request URL: {graphql_url}")
+            print(f"[DEBUG] Request headers count: {len(headers)}")
+            print(f"[DEBUG] Request body length: {len(body)}")
+            print(f"[DEBUG] First 100 chars of body: {body[:100]}")
+            
+            # Make POST request exactly like the working implementation
             response = session.post(
                 graphql_url,
                 headers=headers,
@@ -164,16 +174,25 @@ class InstagramGraphQLClient:
             )
             
             print(f"[INFO] Instagram response status: {response.status_code}")
+            print(f"[DEBUG] Response headers: {dict(response.headers)}")
             
             # Handle various response codes like the working implementation
             if response.status_code == 200:
                 try:
                     data = response.json()
-                except json.JSONDecodeError:
+                    print(f"[DEBUG] Response data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+                except json.JSONDecodeError as je:
+                    print(f"[ERROR] JSON decode error: {je}")
+                    print(f"[DEBUG] Raw response text (first 500 chars): {response.text[:500]}")
                     raise InstagramGraphQLError("Invalid JSON response from Instagram")
                 
-                # Check for GraphQL data structure
-                if not data.get('data') or not data['data'].get('xdt_shortcode_media'):
+                # Check for GraphQL data structure exactly like the working version
+                if not data.get('data'):
+                    print(f"[ERROR] No 'data' key in response: {data}")
+                    raise InstagramGraphQLError("Post not found")
+                    
+                if not data['data'].get('xdt_shortcode_media'):
+                    print(f"[ERROR] No 'xdt_shortcode_media' in data: {data['data']}")
                     raise InstagramGraphQLError("Post not found")
                 
                 media = data['data']['xdt_shortcode_media']
@@ -182,11 +201,13 @@ class InstagramGraphQLClient:
                     raise InstagramGraphQLError("Post not found")
                 
                 if not media.get('is_video', False):
+                    print(f"[ERROR] Post is not a video. is_video: {media.get('is_video')}")
                     raise InstagramGraphQLError("Post is not a video")
                 
                 # Extract video information
                 video_url = media.get('video_url')
                 if not video_url:
+                    print(f"[ERROR] No video_url in media: {list(media.keys())}")
                     raise InstagramGraphQLError("Could not extract video URL")
                 
                 result = {
@@ -206,17 +227,23 @@ class InstagramGraphQLClient:
                 return result
                 
             elif response.status_code == 404:
+                print(f"[ERROR] Instagram returned 404 for shortcode: {shortcode}")
                 raise InstagramGraphQLError("Post not found")
             elif response.status_code in [429, 401]:
+                print(f"[ERROR] Instagram rate limited or unauthorized: {response.status_code}")
+                print(f"[DEBUG] Response text: {response.text[:200]}")
                 raise InstagramGraphQLError("Rate limited by Instagram - please wait and try again")
             else:
+                print(f"[ERROR] Instagram API error {response.status_code}: {response.text[:200]}")
                 raise InstagramGraphQLError(f"Instagram API error: {response.status_code}")
                 
         except requests.exceptions.RequestException as e:
+            print(f"[ERROR] Network error: {e}")
             raise InstagramGraphQLError(f"Network error: {str(e)}")
         except Exception as e:
             if isinstance(e, InstagramGraphQLError):
                 raise
+            print(f"[ERROR] Unexpected error: {e}")
             raise InstagramGraphQLError(f"Unexpected error: {str(e)}")
     
     def download_video_direct(self, video_url: str, output_path: str) -> bool:
