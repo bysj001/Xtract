@@ -8,12 +8,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
-import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { AuthService } from '../services/supabase';
 import { colors } from '../styles/colors';
@@ -37,7 +37,7 @@ export const WelcomeScreen: React.FC = () => {
       try {
         const user = await AuthService.getCurrentUser();
         if (user) {
-          navigation.replace('Main');
+          // Don't manually navigate - let the auth state listener in App.tsx handle the screen transition
         }
       } catch (error) {
         // User not authenticated, stay on welcome screen
@@ -77,7 +77,7 @@ export const WelcomeScreen: React.FC = () => {
     try {
       if (isLogin) {
         await AuthService.signIn(email, password);
-        navigation.replace('Main');
+        // Don't manually navigate - let the auth state listener in App.tsx handle the screen transition
       } else {
         await AuthService.signUp(email, password);
         Alert.alert(
@@ -113,17 +113,12 @@ export const WelcomeScreen: React.FC = () => {
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.logoContainer}>
-                <View style={styles.logoDot} />
                 <Text style={styles.title}>XTRACT</Text>
               </View>
-              <Text style={styles.subtitle}>Audio Sample Catalog</Text>
-              <Text style={styles.description}>
-                Extract audio from TikTok, Instagram, and YouTube videos
-              </Text>
             </View>
 
             {/* Form */}
-            <View style={styles.formContainer}>
+            <View style={[styles.formContainer, globalStyles.bottomSafeArea]}>
               <View style={styles.form}>
                 <Text style={styles.formTitle}>
                   {isLogin ? 'Welcome Back' : 'Create Account'}
@@ -159,15 +154,18 @@ export const WelcomeScreen: React.FC = () => {
                   />
                 )}
 
-                <Button
-                  title={isLogin ? 'Sign In' : 'Create Account'}
+                <TouchableOpacity
+                  style={globalStyles.button}
                   onPress={handleSubmit}
-                  loading={loading}
-                  style={styles.submitButton}
-                />
+                  disabled={loading}
+                >
+                  <Text style={globalStyles.buttonText}>
+                    {isLogin ? 'Sign In' : 'Create Account'}
+                  </Text>
+                </TouchableOpacity>
 
-                <Button
-                  title={isLogin ? 'Need an account? Sign Up' : 'Already have an account? Sign In'}
+                <TouchableOpacity
+                  style={[globalStyles.buttonOutline, styles.switchButton]}
                   onPress={() => {
                     setIsLogin(!isLogin);
                     setErrors({});
@@ -175,9 +173,11 @@ export const WelcomeScreen: React.FC = () => {
                     setPassword('');
                     setConfirmPassword('');
                   }}
-                  variant="ghost"
-                  style={styles.switchButton}
-                />
+                >
+                  <Text style={globalStyles.buttonTextOutline}>
+                    {isLogin ? 'Need an account? Sign Up' : 'Already have an account? Sign In'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           </ScrollView>
@@ -198,10 +198,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
   },
   header: {
     alignItems: 'center',
     marginBottom: 40,
+    marginTop: 60,
   },
   logoContainer: {
     flexDirection: 'row',
@@ -265,10 +267,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
-  submitButton: {
-    marginTop: 16,
-  },
   switchButton: {
     marginTop: 16,
+    marginBottom: 0,
   },
 }); 

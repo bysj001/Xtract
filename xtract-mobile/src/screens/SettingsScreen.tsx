@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Switch,
   Linking,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../components';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowBackIcon, Icon } from '../components';
 import { colors, transparentColors } from '../styles/colors';
+import { globalStyles } from '../styles/globalStyles';
 import { AuthService } from '../services/supabase';
 
 interface SettingsScreenProps {
@@ -22,9 +23,7 @@ interface SettingsScreenProps {
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, route, user }) => {
-  const [notifications, setNotifications] = useState(true);
-  const [autoProcess, setAutoProcess] = useState(true);
-  const [highQuality, setHighQuality] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -38,10 +37,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, rout
           onPress: async () => {
             try {
               await AuthService.signOut();
-              navigation.navigate('Welcome');
-                } catch (error) {
-      Alert.alert('Error', 'Failed to sign out. Please try again.');
-    }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
           }
         }
       ]
@@ -108,7 +106,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, rout
         {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
       </View>
       {rightComponent}
-      {showArrow && <Text style={styles.arrow}>›</Text>}
+      {showArrow && <Icon name="chevron-forward" size={20} color={colors.textSecondary} />}
     </TouchableOpacity>
   );
 
@@ -120,13 +118,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, rout
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backIcon}>‹</Text>
+            <ArrowBackIcon size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.title}>Settings</Text>
           <View style={styles.placeholder} />
         </View>
 
-        <ScrollView style={styles.content}>
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Account Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Account</Text>
@@ -138,7 +140,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, rout
               >
                 <View style={styles.accountInfo}>
                   <Text style={styles.accountEmail}>{user?.email}</Text>
-                  <Text style={styles.accountStatus}>Premium Account</Text>
                 </View>
               </LinearGradient>
             </View>
@@ -148,50 +149,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, rout
               subtitle="View billing and upgrade options"
               onPress={() => {/* Navigate to subscription management */}}
               showArrow
-            />
-          </View>
-
-          {/* Preferences Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Preferences</Text>
-            
-            <SettingItem
-              title="Push Notifications"
-              subtitle="Get notified when processing completes"
-              rightComponent={
-                <Switch
-                  value={notifications}
-                  onValueChange={setNotifications}
-                  trackColor={{ false: transparentColors.textSecondary30, true: transparentColors.primary50 }}
-                  thumbColor={notifications ? colors.primary : colors.textSecondary}
-                />
-              }
-            />
-
-            <SettingItem
-              title="Auto-Process Shared Videos"
-              subtitle="Automatically start processing when sharing videos"
-              rightComponent={
-                <Switch
-                  value={autoProcess}
-                  onValueChange={setAutoProcess}
-                  trackColor={{ false: transparentColors.textSecondary30, true: transparentColors.primary50 }}
-                  thumbColor={autoProcess ? colors.primary : colors.textSecondary}
-                />
-              }
-            />
-
-            <SettingItem
-              title="High Quality Audio"
-              subtitle="Use higher bitrate for better quality (uses more storage)"
-              rightComponent={
-                <Switch
-                  value={highQuality}
-                  onValueChange={setHighQuality}
-                  trackColor={{ false: transparentColors.textSecondary30, true: transparentColors.primary50 }}
-                  thumbColor={highQuality ? colors.primary : colors.textSecondary}
-                />
-              }
             />
           </View>
 
@@ -263,19 +220,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, rout
             <Text style={styles.sectionTitle}>Account Actions</Text>
             
             <View style={styles.dangerZone}>
-              <Button
-                title="Sign Out"
-                onPress={handleSignOut}
+              <TouchableOpacity
                 style={styles.signOutButton}
-                textStyle={styles.signOutText}
-              />
+                onPress={handleSignOut}
+              >
+                <Text style={styles.signOutText}>Sign Out</Text>
+              </TouchableOpacity>
 
-              <Button
-                title="Delete Account"
-                onPress={handleDeleteAccount}
+              <TouchableOpacity
                 style={styles.deleteButton}
-                textStyle={styles.deleteText}
-              />
+                onPress={handleDeleteAccount}
+              >
+                <Text style={styles.deleteText}>Delete Account</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
@@ -317,7 +274,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
   },
   section: {
     marginBottom: 30,
@@ -334,16 +290,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   accountGradient: {
-    padding: 20,
+    padding: 0,
   },
   accountInfo: {
     alignItems: 'center',
+    marginHorizontal: 20,
+    marginVertical: 20,
   },
   accountEmail: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
+    textAlign: 'center',
+    lineHeight: 22,
   },
   accountStatus: {
     fontSize: 14,
@@ -382,19 +342,37 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   signOutButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: transparentColors.textSecondary50,
+    backgroundColor: colors.backgroundCard,
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.textSecondary,
   },
   signOutText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.textSecondary,
   },
   deleteButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
     borderColor: '#ff6b6b',
   },
   deleteText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#ff6b6b',
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 50 : 30, // Simple padding for iOS
   },
 }); 

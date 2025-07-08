@@ -8,10 +8,11 @@ import {
   Alert,
   RefreshControl,
   Dimensions,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../components';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SettingsIcon, PlayIcon } from '../components';
 import { colors, transparentColors } from '../styles/colors';
 import { globalStyles } from '../styles/globalStyles';
 import { AudioService, BackendService } from '../services/supabase';
@@ -31,7 +32,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     loadData();
@@ -94,8 +95,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     return removeListener;
   };
 
-
-
   const handleSharedURL = async (url: string) => {
     // Show immediate feedback to user
     Alert.alert('Processing Video', 'Extracting audio from shared video...', [], { cancelable: false });
@@ -144,15 +143,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     }
   };
 
-
-
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
   };
-
-
 
   const renderAudioFile = (file: AudioFile) => {
     // Fallback values for missing data
@@ -195,7 +190,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
           </Text>
           {/* Add a play button icon */}
           <View style={styles.playButtonContainer}>
-            <Text style={styles.playButtonIcon}>▶️</Text>
+            <PlayIcon size={20} color={colors.primary} />
             <Text style={styles.playButtonText}>Tap to Play</Text>
           </View>
         </LinearGradient>
@@ -203,30 +198,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     );
   };
 
-  // Helper function to extract a clean title from filename
   const extractTitleFromFilename = (filename: string): string => {
-    if (!filename) return 'Unknown Audio';
+    if (!filename) return '';
     
     // Remove file extension
-    let title = filename.replace(/\.[^/.]+$/, '');
+    const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
     
-    // Handle special characters and patterns
-    title = title
-      .replace(/[@]/g, '') // Remove @ symbols
-      .replace(/[_-]/g, ' ') // Replace underscores and hyphens with spaces
-      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-      .trim(); // Remove leading/trailing spaces
+    // Replace underscores and dashes with spaces
+    const formatted = nameWithoutExt.replace(/[_-]/g, ' ');
     
     // Capitalize first letter of each word
-    title = title.replace(/\w\S*/g, (txt) => 
-      txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
-    );
-    
-    return title || 'Unknown Audio';
+    return formatted.replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const formatDuration = (seconds: number | null): string => {
-    if (!seconds) return '0:00';
+    if (!seconds || seconds <= 0) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -241,19 +227,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
             style={styles.settingsButton}
             onPress={() => navigation.navigate('Settings')}
           >
-            <Text style={styles.settingsIcon}>⚙️</Text>
+            <SettingsIcon size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
-        
 
 
         <ScrollView
           style={styles.content}
+          contentContainerStyle={styles.scrollContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          showsVerticalScrollIndicator={false}
         >
-
 
           {/* Audio Files Section */}
           <View style={styles.section}>
@@ -272,11 +258,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
 
           {/* Manual URL Input */}
           <View style={styles.section}>
-            <Button
-              title="Enter Video URL Manually"
+            <TouchableOpacity
+              style={globalStyles.button}
               onPress={() => navigation.navigate('ManualInput')}
-              style={styles.manualButton}
-            />
+            >
+              <Text style={globalStyles.buttonText}>Enter Video URL Manually</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -306,15 +293,15 @@ const styles = StyleSheet.create({
   settingsButton: {
     padding: 10,
   },
-  settingsIcon: {
-    fontSize: 24,
-  },
   content: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 60 : 40, // Increased padding to ensure bottom content isn't clipped
   },
   section: {
-    marginBottom: 30,
+    marginBottom: 40,
   },
   sectionTitle: {
     fontSize: 20,
@@ -362,18 +349,20 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   fileCard: {
-    marginBottom: 12,
+    marginBottom: 20,
     borderRadius: 12,
     overflow: 'hidden',
   },
   fileGradient: {
-    padding: 16,
+    padding: 0,
   },
   fileHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+    marginHorizontal: 16,
+    marginTop: 16,
   },
   fileName: {
     fontSize: 16,
@@ -391,10 +380,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 4,
+    marginHorizontal: 16,
   },
   fileDate: {
     fontSize: 12,
     color: colors.textSecondary,
+    marginHorizontal: 16,
   },
   emptyState: {
     alignItems: 'center',
@@ -411,24 +402,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  manualButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
   playButtonContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
-  },
-  playButtonIcon: {
-    fontSize: 20,
-    color: colors.primary,
-    marginRight: 5,
+    marginTop: 8,
+    marginHorizontal: 16,
+    marginBottom: 16,
   },
   playButtonText: {
     fontSize: 14,
     color: colors.primary,
+    marginLeft: 8,
   },
   debugContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',

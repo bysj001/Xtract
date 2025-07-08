@@ -12,8 +12,9 @@ import Slider from '@react-native-community/slider';
 import { WebView } from 'react-native-webview';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Waveform } from '../components';
+import { Waveform } from '../components';
 import { colors, transparentColors } from '../styles/colors';
+import { globalStyles } from '../styles/globalStyles';
 import { AudioFile } from '../types';
 
 const { width } = Dimensions.get('window');
@@ -462,19 +463,23 @@ export const AudioPlayerScreen: React.FC<AudioPlayerScreenProps> = ({ navigation
 
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
-          <Button
-            title="Download"
+          <TouchableOpacity
             onPress={handleDownload}
-            style={styles.actionButton}
-            textStyle={styles.actionButtonText}
-          />
+            style={[globalStyles.button, styles.actionButton]}
+          >
+            <Text style={[globalStyles.buttonText, styles.actionButtonText]}>
+              Download
+            </Text>
+          </TouchableOpacity>
           
-          <Button
-            title="Share"
+          <TouchableOpacity
             onPress={handleShare}
-            style={styles.actionButton}
-            textStyle={styles.actionButtonText}
-          />
+            style={[globalStyles.button, styles.actionButton]}
+          >
+            <Text style={[globalStyles.buttonText, styles.actionButtonText]}>
+              Share
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* File Details */}

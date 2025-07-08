@@ -104,7 +104,7 @@ export const Input: React.FC<InputProps> = ({
             onPress={() => setShowPassword(!showPassword)}
           >
             <Text style={styles.eyeButtonText}>
-              {showPassword ? '🙈' : '👁️'}
+              {showPassword ? 'Hide' : 'Show'}
             </Text>
           </TouchableOpacity>
         )}
@@ -138,7 +138,11 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   eyeButtonText: {
-    fontSize: 16,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   errorText: {
     fontSize: 12,

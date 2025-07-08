@@ -1,4 +1,4 @@
-import { StyleSheet, Dimensions } from 'react-native';
+import { StyleSheet, Dimensions, Platform } from 'react-native';
 import { colors } from './colors';
 
 const { width, height } = Dimensions.get('window');
@@ -20,6 +20,30 @@ export const globalStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.background,
+  },
+
+  // ScrollView styles with proper iOS safe area handling
+  scrollViewContent: {
+    flexGrow: 1,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 20, // Consistent padding, not arbitrary numbers
+  },
+
+  scrollViewContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+
+  // Simple content container for ScrollViews - no flexGrow to avoid layout issues
+  scrollViewContentContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 20, // Simple, predictable padding
+  },
+
+  // Container with bottom safe area padding
+  containerWithBottomPadding: {
+    flex: 1,
+    backgroundColor: colors.background,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 0,
   },
   
   // Card styles
@@ -119,64 +143,58 @@ export const globalStyles = StyleSheet.create({
     lineHeight: 16,
   },
   
-  // Button styles
+  // Simple button styles that actually work
   button: {
     backgroundColor: colors.primary,
     borderRadius: 18,
-    paddingVertical: 12,
+    paddingVertical: 16,
     paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: 8,
   },
   
   buttonSecondary: {
     backgroundColor: colors.secondary,
     borderRadius: 18,
-    paddingVertical: 12,
+    paddingVertical: 16,
     paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.secondary,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: 8,
+  },
+  
+  buttonOutline: {
+    backgroundColor: 'transparent',
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    marginBottom: 8,
   },
   
   buttonText: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    textAlign: 'center',
   },
   
-  buttonSmall: {
-    backgroundColor: colors.primary,
-    borderRadius: 15,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  
-  buttonSmallText: {
-    fontSize: 12,
+  buttonTextSecondary: {
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  
+  buttonTextOutline: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
   },
   
   // Input styles
@@ -190,6 +208,7 @@ export const globalStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     marginVertical: 8,
+    marginBottom: Platform.OS === 'ios' ? 12 : 8, // Extra margin for iOS
   },
   
   inputFocused: {
@@ -199,9 +218,31 @@ export const globalStyles = StyleSheet.create({
       width: 0,
       height: 0,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 2,
+  },
+
+  // Layout helpers for better iOS handling
+  bottomSpacing: {
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+
+  bottomSafeArea: {
+    paddingBottom: Platform.OS === 'ios' ? 34 : 0,
+  },
+  
+  // Form container with proper spacing
+  formContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+
+  // Content container for ScrollViews
+  contentContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 50 : 30, // Extra padding for iOS home indicator
   },
   
   // Layout styles

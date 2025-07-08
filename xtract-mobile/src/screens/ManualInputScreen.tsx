@@ -7,11 +7,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Input } from '../components';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Input, CameraIcon, MusicalNotesIcon } from '../components';
 import { colors, transparentColors } from '../styles/colors';
+import { globalStyles } from '../styles/globalStyles';
 import { BackendService } from '../services/supabase';
 import { isValidVideoUrl } from '../utils/videoUtils';
 
@@ -24,6 +26,7 @@ interface ManualInputScreenProps {
 export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation, route, user }) => {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const insets = useSafeAreaInsets();
 
   // Pre-populate URL if it was shared from another app
   useEffect(() => {
@@ -88,7 +91,12 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoidingView}
         >
-          <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.header}>
               <Text style={styles.title}>Enter Video URL</Text>
               <Text style={styles.subtitle}>
@@ -107,46 +115,43 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
                   style={styles.urlInput}
                 />
                 
-                <Button
-                  title="Paste from Clipboard"
+                <TouchableOpacity
+                  style={globalStyles.buttonOutline}
                   onPress={handlePaste}
-                  style={styles.pasteButton}
-                  textStyle={styles.pasteButtonText}
-                />
+                >
+                  <Text style={globalStyles.buttonTextOutline}>Paste from Clipboard</Text>
+                </TouchableOpacity>
               </View>
 
               <View style={styles.examplesContainer}>
                 <Text style={styles.examplesTitle}>Supported platforms:</Text>
                 <View style={styles.platformList}>
                   <View style={styles.platformItem}>
-                    <Text style={styles.platformEmoji}>📸</Text>
+                    <CameraIcon size={20} color={colors.primary} />
                     <Text style={styles.platformName}>Instagram</Text>
                   </View>
                   <View style={styles.platformItem}>
-                    <Text style={styles.platformEmoji}>🎵</Text>
+                    <MusicalNotesIcon size={20} color={colors.primary} />
                     <Text style={styles.platformName}>TikTok</Text>
-                  </View>
-                  <View style={styles.platformItem}>
-                    <Text style={styles.platformEmoji}>📺</Text>
-                    <Text style={styles.platformName}>YouTube</Text>
                   </View>
                 </View>
               </View>
 
               <View style={styles.buttonContainer}>
-                <Button
-                  title={loading ? 'Processing...' : 'Extract Audio'}
+                <TouchableOpacity
+                  style={[globalStyles.button, (loading || !url.trim()) && styles.disabledButton]}
                   onPress={handleSubmit}
                   disabled={loading || !url.trim()}
-                  style={styles.submitButton}
-                />
+                >
+                  <Text style={globalStyles.buttonText}>{loading ? 'Processing...' : 'Extract Audio'}</Text>
+                </TouchableOpacity>
                 
-                <Button
-                  title="Cancel"
+                <TouchableOpacity
+                  style={globalStyles.buttonOutline}
                   onPress={() => navigation.goBack()}
-                  style={styles.cancelButton}
-                  textStyle={styles.cancelButtonText}
-                />
+                >
+                  <Text style={globalStyles.buttonTextOutline}>Cancel</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </ScrollView>
@@ -169,6 +174,10 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 50 : 30,
+  },
   header: {
     paddingHorizontal: 20,
     paddingTop: 20,
@@ -189,7 +198,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
   },
   inputContainer: {
     marginBottom: 30,
@@ -199,21 +207,11 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     marginBottom: 15,
   },
-  pasteButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: transparentColors.primary50,
-    paddingVertical: 12,
-  },
-  pasteButtonText: {
-    color: colors.primary,
-    fontSize: 14,
-  },
   examplesContainer: {
     marginBottom: 40,
   },
   examplesTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 15,
@@ -224,31 +222,22 @@ const styles = StyleSheet.create({
   },
   platformItem: {
     alignItems: 'center',
-    flex: 1,
-  },
-  platformEmoji: {
-    fontSize: 32,
-    marginBottom: 8,
+    padding: 15,
+    borderRadius: 12,
+    backgroundColor: transparentColors.primary10,
+    minWidth: 100,
   },
   platformName: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: colors.text,
+    marginTop: 8,
     fontWeight: '500',
   },
   buttonContainer: {
     gap: 15,
-    paddingBottom: 30,
   },
-  submitButton: {
-    paddingVertical: 16,
-  },
-  cancelButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: transparentColors.textSecondary50,
-    paddingVertical: 14,
-  },
-  cancelButtonText: {
-    color: colors.textSecondary,
+  disabledButton: {
+    backgroundColor: colors.backgroundCard,
+    opacity: 0.5,
   },
 }); 
