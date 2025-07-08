@@ -1,9 +1,9 @@
 # Configuration for video extraction service
 
-# Rate limiting settings (in seconds) - More conservative for mobile apps
+# Rate limiting settings (in seconds) - Optimized for GraphQL bypass
 RATE_LIMITS = {
-    'instagram.com': 12,     # Instagram is strict, wait 12 seconds between requests
-    'www.instagram.com': 12,
+    'instagram.com': 3,      # Instagram GraphQL API is much more lenient
+    'www.instagram.com': 3,
     'tiktok.com': 8,         # TikTok moderate rate limiting
     'www.tiktok.com': 8,     # Include www subdomain
     'vm.tiktok.com': 8,
@@ -47,10 +47,10 @@ MAX_RETRIES = {
     'default': 2
 }
 
-# Random delay ranges for more human-like behavior (longer for mobile)
+# Random delay ranges for more human-like behavior (optimized for GraphQL)
 RANDOM_DELAYS = {
-    'instagram.com': (5, 12),   # 5-12 second random delay for Instagram
-    'www.instagram.com': (5, 12),
+    'instagram.com': (1, 3),    # Much shorter delays with GraphQL API
+    'www.instagram.com': (1, 3),
     'tiktok.com': (3, 8),
     'www.tiktok.com': (3, 8),
     'vm.tiktok.com': (3, 8),
@@ -64,16 +64,16 @@ USER_ERROR_MESSAGES = {
     'instagram_rate_limit': """
 🚫 Instagram Rate Limit Reached
 
-Instagram has temporarily blocked requests from our server. This is normal when processing multiple videos quickly.
+Instagram has temporarily restricted our GraphQL API access. This is rare but can happen with very high request volumes.
 
-⏰ Please wait 10-15 minutes and try again.
+⏰ Please wait 2-3 minutes and try again.
 
-💡 Tips to avoid this:
-• Wait at least 5 minutes between processing Instagram videos
-• Try processing videos from other platforms (TikTok, YouTube) in the meantime
-• This limit resets automatically after a break
+💡 Our enhanced system:
+• Uses Instagram's internal GraphQL API (much more reliable)
+• No login or cookies required
+• Significantly reduced rate limiting compared to traditional methods
 
-🔄 Your request will work once the rate limit period passes.
+🔄 This temporary limit usually resolves quickly.
     """.strip(),
     
     'instagram_auth_required': """

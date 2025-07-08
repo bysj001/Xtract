@@ -6,7 +6,10 @@ pydantic==2.10.4
 # CORS middleware
 python-multipart==0.0.17
 
-# Video/Audio processing
+# HTTP requests for Instagram GraphQL API (primary method)
+requests==2.31.0
+
+# Video/Audio processing (fallback for non-Instagram platforms)
 yt-dlp==2024.12.13
 
 # Supabase client
