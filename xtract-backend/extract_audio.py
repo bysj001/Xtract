@@ -42,8 +42,11 @@ async def extract_and_upload_audio(url: str, user_id: str) -> Dict[str, Any]:
     session_dir = None
     
     try:
-        # Apply rate limiting before starting
-        await apply_rate_limiting(url)
+        # Apply rate limiting before starting (but skip Instagram - it uses instant GraphQL)
+        if not is_instagram_url(url):
+            await apply_rate_limiting(url)
+        else:
+            print("[INFO] Instagram URL detected - skipping rate limiting (using instant GraphQL)")
         
         # Create processing job in Supabase
         job_response = supabase.table('processing_jobs').insert({
@@ -122,6 +125,12 @@ async def extract_and_upload_audio(url: str, user_id: str) -> Dict[str, Any]:
 async def apply_rate_limiting(url: str):
     """Apply smart rate limiting based on platform and configuration"""
     domain = urlparse(url).netloc.lower()
+    
+    # SKIP rate limiting for Instagram - matches instagram-video-downloader behavior
+    if 'instagram.com' in domain:
+        print(f"[INFO] Skipping rate limiting for Instagram (instant GraphQL)")
+        return
+    
     current_time = time.time()
     
     # Get platform-specific rate limit

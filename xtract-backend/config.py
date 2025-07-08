@@ -2,8 +2,8 @@
 
 # Rate limiting settings (in seconds) - Optimized for GraphQL bypass
 RATE_LIMITS = {
-    'instagram.com': 3,      # Instagram GraphQL API is much more lenient
-    'www.instagram.com': 3,
+    'instagram.com': 0,      # Instagram GraphQL API - NO delays (matches instagram-video-downloader)
+    'www.instagram.com': 0,
     'tiktok.com': 8,         # TikTok moderate rate limiting
     'www.tiktok.com': 8,     # Include www subdomain
     'vm.tiktok.com': 8,
