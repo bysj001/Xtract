@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { AudioProcessor } from "@/lib/audio-processor";
 import { extractShortcodeFromUrl, isShortcodePresent } from "@/lib/instagram-utils";
-import { HTTP_CODE_ENUM } from "@/lib/http-codes";
+import { HTTP_CODE_ENUM } from "@/features/api/http-codes";
 import { v4 as uuidv4 } from 'uuid';
+import { getInstagramPostGraphQL } from "@/app/api/instagram/p/[shortcode]/utils";
+import { IG_GraphQLResponseDto } from "@/features/api/_dto/instagram";
 
 // Request/Response types for mobile app
 interface ExtractRequest {
@@ -81,7 +83,7 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', jobId);
 
-    // Extract shortcode and get video info
+    // Extract shortcode and get video info using exact implementation
     const shortcode = extractShortcodeFromUrl(url);
     if (!shortcode) {
       throw new Error('Could not extract shortcode from Instagram URL');
@@ -89,50 +91,59 @@ export async function POST(request: NextRequest) {
 
     console.log(`[INFO] Extracted shortcode: ${shortcode}`);
 
-    // Call our own Instagram API to get video info
-    const baseUrl = request.nextUrl.origin;
-    const instagramApiUrl = `${baseUrl}/api/instagram/p/${shortcode}`;
-    
-    console.log(`[INFO] Calling Instagram API: ${instagramApiUrl}`);
-    
-    const instagramResponse = await fetch(instagramApiUrl);
-    
-    if (!instagramResponse.ok) {
-      const errorText = await instagramResponse.text();
-      throw new Error(`Instagram API failed: ${instagramResponse.status} - ${errorText}`);
+    // Use the exact same Instagram GraphQL implementation as the working project
+    const response = await getInstagramPostGraphQL({
+      shortcode,
+    });
+
+    const status = response.status;
+    console.log(`[INFO] Instagram GraphQL response status: ${status}`);
+
+    if (status === 200) {
+      const { data } = (await response.json()) as IG_GraphQLResponseDto;
+      
+      if (!data.xdt_shortcode_media) {
+        throw new Error('Instagram post not found');
+      }
+
+      if (!data.xdt_shortcode_media.is_video) {
+        throw new Error('Instagram post is not a video');
+      }
+
+      const videoUrl = data.xdt_shortcode_media.video_url;
+      console.log(`[INFO] Got Instagram video URL: ${videoUrl.substring(0, 50)}...`);
+
+      // Process audio extraction using proxy approach (same as working project)
+      const baseUrl = request.nextUrl.origin;
+      const audioProcessor = new AudioProcessor(baseUrl);
+      const audioFileId = await audioProcessor.processInstagramVideo(videoUrl, user_id);
+
+      // Update job as completed
+      await supabase
+        .from('processing_jobs')
+        .update({
+          status: 'completed',
+          result_audio_file_id: audioFileId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+
+      console.log(`[SUCCESS] Audio extraction completed. Job: ${jobId}, Audio file: ${audioFileId}`);
+
+      return NextResponse.json({
+        success: true,
+        job_id: jobId,
+        audio_file_id: audioFileId,
+        message: "Audio extraction completed successfully",
+      } as ExtractResponse, { status: HTTP_CODE_ENUM.OK });
+
+    } else if (status === 404) {
+      throw new Error('Instagram post not found');
+    } else if (status === 429 || status === 401) {
+      throw new Error('Instagram rate limited - too many requests, try again later');
+    } else {
+      throw new Error(`Instagram API returned status: ${status}`);
     }
-
-    const instagramData = await instagramResponse.json();
-    
-    if (!instagramData.data?.data?.xdt_shortcode_media?.video_url) {
-      throw new Error('No video URL found in Instagram response');
-    }
-
-    const videoUrl = instagramData.data.data.xdt_shortcode_media.video_url;
-    console.log(`[INFO] Got Instagram video URL: ${videoUrl.substring(0, 50)}...`);
-
-    // Process audio extraction
-    const audioProcessor = new AudioProcessor();
-    const audioFileId = await audioProcessor.processInstagramVideo(videoUrl, user_id, url);
-
-    // Update job as completed
-    await supabase
-      .from('processing_jobs')
-      .update({
-        status: 'completed',
-        result_audio_file_id: audioFileId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', jobId);
-
-    console.log(`[SUCCESS] Audio extraction completed. Job: ${jobId}, Audio file: ${audioFileId}`);
-
-    return NextResponse.json({
-      success: true,
-      job_id: jobId,
-      audio_file_id: audioFileId,
-      message: "Audio extraction completed successfully",
-    } as ExtractResponse, { status: HTTP_CODE_ENUM.OK });
 
   } catch (error: any) {
     const errorMessage = `Audio extraction failed: ${error.message}`;

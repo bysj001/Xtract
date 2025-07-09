@@ -1,6 +1,6 @@
 import { RequestConfigType } from "@/types/request-config";
 import { IG_GraphQLResponseDto } from "@/features/api/_dto/instagram";
-import { isShortcodePresent, getPostShortcode } from "@/lib/utils";
+
 import querystring from "querystring";
 
 function generateRequestBody(shortcode: string) {
@@ -78,12 +78,4 @@ export function getInstagramPostGraphQL(
     mode: "cors",
     ...requestConfig,
   });
-}
-
-// Re-export utility functions from lib/utils.ts (same as working project)
-export { isShortcodePresent, getPostShortcode };
-
-// Legacy function names for backwards compatibility
-export function extractShortcodeFromUrl(url: string): string | null {
-  return getPostShortcode(url);
 } 

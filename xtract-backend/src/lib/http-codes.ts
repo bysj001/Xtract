@@ -1,12 +1,2 @@
-export enum HTTP_CODE_ENUM {
-  OK = 200,
-  CREATED = 201,
-  ACCEPTED = 202,
-  NO_CONTENT = 204,
-  BAD_REQUEST = 400,
-  NOT_FOUND = 404,
-  TOO_MANY_REQUESTS = 429,
-  UNPROCESSABLE_ENTITY = 422,
-  INTERNAL_SERVER_ERROR = 500,
-  SERVICE_UNAVAILABLE = 503,
-} 
+// Re-export from features
+export { HTTP_CODE_ENUM } from "@/features/api/http-codes"; 

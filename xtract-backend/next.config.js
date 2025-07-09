@@ -1,14 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ['fluent-ffmpeg'],
   experimental: {
-    serverComponentsExternalPackages: ['fluent-ffmpeg']
-  },
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb',
-    },
-    responseLimit: false,
-  },
+    serverActions: {
+      allowedOrigins: ['localhost:3000', '*.vercel.app']
+    }
+  }
 }
 
 module.exports = nextConfig 
