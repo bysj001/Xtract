@@ -178,4 +178,4 @@ export type SharingFrictionInfoDto = {
 
 export type ExtensionsDto = {
   is_final: boolean;
-}; 
+};

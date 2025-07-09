@@ -153,37 +153,39 @@ export class ProcessingService {
 }
 
 export class BackendService {
-  // Railway deployment URL - Node.js with ffmpeg-static implementation
-  // Project: https://railway.app
-  private static BACKEND_URL = 'https://xtract-production.up.railway.app';
+  // Vercel deployment URL - xtract-backend coordinates with Railway audio-extraction
+  // Project: https://vercel.com
+  private static BACKEND_URL = 'https://xtract-otimib3km-brians-projects-998b86c6.vercel.app';
 
   static async processVideoUrl(url: string, userId: string): Promise<{ jobId: string; audioFileId?: string }> {
     try {
-      const response = await fetch(`${this.BACKEND_URL}/api/extract`, {
+      const response = await fetch(`${this.BACKEND_URL}/api/extract-audio`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          url,
-          user_id: userId,
+          instagramUrl: url,
+          userId: userId,
+          format: 'mp3',
+          quality: 'medium',
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
       
       if (!data.success) {
-        throw new Error(data.error || 'Processing failed');
+        throw new Error(data.message || data.error || 'Processing failed');
       }
       
       return {
-        jobId: data.job_id,
-        audioFileId: data.audio_file_id
+        jobId: data.data.jobId,
+        audioFileId: data.data.audioFileId
       };
     } catch (error) {
       throw error;

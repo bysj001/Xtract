@@ -80,4 +80,4 @@ export function getInstagramPostGraphQL(
     mode: "cors",
     ...requestConfig,
   });
-} 
+}

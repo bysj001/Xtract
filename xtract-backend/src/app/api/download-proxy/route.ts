@@ -1,10 +1,13 @@
 // app/api/download-proxy/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { writeFile, mkdir } from "fs/promises";
+import { join } from "path";
+import { existsSync } from "fs";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const fileUrl = searchParams.get("url");
-  const filename = searchParams.get("filename") || "gram-grabberz-video.mp4"; // Default filename
+  const shortcode = searchParams.get("shortcode") || "unknown";
 
   if (!fileUrl) {
     return NextResponse.json(
@@ -14,7 +17,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Validate the URL slightly (optional but recommended)
+    // Validate the URL
     if (!fileUrl.startsWith("https://")) {
       return NextResponse.json(
         { error: "Invalid URL format" },
@@ -29,33 +32,32 @@ export async function GET(request: NextRequest) {
       throw new Error(`Failed to fetch video: ${videoResponse.statusText}`);
     }
 
-    // Get the video data as a ReadableStream
-    const videoStream = videoResponse.body;
+    // Get the video data as buffer
+    const videoBuffer = await videoResponse.arrayBuffer();
+    const buffer = Buffer.from(videoBuffer);
 
-    if (!videoStream) {
-      throw new Error("Video stream is not available");
+    // Create temp directory if it doesn't exist
+    const tempDir = join(process.cwd(), "temp");
+    if (!existsSync(tempDir)) {
+      await mkdir(tempDir, { recursive: true });
     }
 
-    // Set headers to force download
-    const headers = new Headers();
-    headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-    // Try to get Content-Type from original response, fallback to generic video type
-    headers.set(
-      "Content-Type",
-      videoResponse.headers.get("Content-Type") || "video/mp4"
-    );
-    // Optionally set Content-Length if available
-    if (videoResponse.headers.get("Content-Length")) {
-      headers.set(
-        "Content-Length",
-        videoResponse.headers.get("Content-Length")!
-      );
-    }
+    // Generate unique filename
+    const timestamp = Date.now();
+    const filename = `${shortcode}_${timestamp}.mp4`;
+    const filepath = join(tempDir, filename);
 
-    // Return the stream response
-    return new NextResponse(videoStream, {
-      status: 200,
-      headers: headers,
+    // Save the video temporarily
+    await writeFile(filepath, buffer);
+
+    // Return the temporary file info
+    return NextResponse.json({
+      success: true,
+      tempFile: filename,
+      filepath: filepath,
+      size: buffer.length,
+      downloadUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/temp-file/${filename}`,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
     });
   } catch (error: any) {
     console.error("Download proxy error:", error);
@@ -64,4 +66,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

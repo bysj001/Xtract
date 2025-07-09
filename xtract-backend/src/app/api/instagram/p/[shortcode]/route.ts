@@ -71,4 +71,4 @@ export async function GET(_: NextRequest, context: RouteContext) {
       { status: 500 }
     );
   }
-} 
+}

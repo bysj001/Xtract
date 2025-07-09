@@ -1,10 +1,3 @@
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
 export function isShortcodePresent(url: string) {
   const regex = /\/(p|reel)\/([a-zA-Z0-9_-]+)\/?/;
   const match = url.match(regex);
@@ -26,4 +19,4 @@ export function getPostShortcode(url: string): string | null {
   } else {
     return null;
   }
-} 
+}

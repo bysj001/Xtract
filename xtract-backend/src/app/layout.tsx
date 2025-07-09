@@ -1,18 +1,18 @@
-import type { Metadata } from 'next'
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'Xtract Backend API',
-  description: 'Backend API for Xtract audio extraction service',
-}
+  title: "Xtract Backend API",
+  description: "Backend API for video content extraction",
+};
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode
-}) {
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="en">
       <body>{children}</body>
     </html>
-  )
-} 
+  );
+}

@@ -1,0 +1,77 @@
+/// <reference types="node" />
+
+export interface EnvironmentConfig {
+  NODE_ENV: 'development' | 'production' | 'test';
+  PORT: number;
+  XTRACT_BACKEND_URL: string;
+  ALLOWED_ORIGINS: string[];
+  TEMP_DIR: string;
+  MAX_FILE_SIZE: number;
+  CLEANUP_INTERVAL_HOURS: number;
+  FILE_RETENTION_HOURS: number;
+  SUPABASE_URL: string;
+  SUPABASE_ANON_KEY: string;
+}
+
+export function validateEnvironment(): EnvironmentConfig {
+  const requiredVars = {
+    NODE_ENV: process.env.NODE_ENV || 'development',
+    PORT: parseInt(process.env.PORT || '3001'),
+    XTRACT_BACKEND_URL: process.env.XTRACT_BACKEND_URL || 'http://localhost:3000',
+    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+    TEMP_DIR: process.env.TEMP_DIR || './temp',
+    MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE || '100'), // MB
+    CLEANUP_INTERVAL_HOURS: parseInt(process.env.CLEANUP_INTERVAL_HOURS || '1'),
+    FILE_RETENTION_HOURS: parseInt(process.env.FILE_RETENTION_HOURS || '2'),
+    SUPABASE_URL: process.env.SUPABASE_URL || '',
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
+  };
+
+  // Validate PORT
+  if (isNaN(requiredVars.PORT) || requiredVars.PORT < 1 || requiredVars.PORT > 65535) {
+    throw new Error('Invalid PORT: must be a number between 1 and 65535');
+  }
+
+  // Validate XTRACT_BACKEND_URL
+  try {
+    new URL(requiredVars.XTRACT_BACKEND_URL);
+  } catch {
+    throw new Error('Invalid XTRACT_BACKEND_URL: must be a valid URL');
+  }
+
+  // Validate Supabase credentials (required in production)
+  if (requiredVars.NODE_ENV === 'production') {
+    if (!requiredVars.SUPABASE_URL) {
+      throw new Error('SUPABASE_URL is required in production');
+    }
+    if (!requiredVars.SUPABASE_ANON_KEY) {
+      throw new Error('SUPABASE_ANON_KEY is required in production');
+    }
+  }
+
+  // Validate SUPABASE_URL if provided
+  if (requiredVars.SUPABASE_URL) {
+    try {
+      new URL(requiredVars.SUPABASE_URL);
+    } catch {
+      throw new Error('Invalid SUPABASE_URL: must be a valid URL');
+    }
+  }
+
+  // Validate numeric values
+  if (isNaN(requiredVars.MAX_FILE_SIZE) || requiredVars.MAX_FILE_SIZE < 1) {
+    throw new Error('Invalid MAX_FILE_SIZE: must be a positive number');
+  }
+
+  if (isNaN(requiredVars.CLEANUP_INTERVAL_HOURS) || requiredVars.CLEANUP_INTERVAL_HOURS < 1) {
+    throw new Error('Invalid CLEANUP_INTERVAL_HOURS: must be a positive number');
+  }
+
+  if (isNaN(requiredVars.FILE_RETENTION_HOURS) || requiredVars.FILE_RETENTION_HOURS < 1) {
+    throw new Error('Invalid FILE_RETENTION_HOURS: must be a positive number');
+  }
+
+  return requiredVars as EnvironmentConfig;
+}
+
+export const config = validateEnvironment(); 

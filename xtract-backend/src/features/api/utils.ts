@@ -37,4 +37,4 @@ export async function wrapperFetchJsonResponse<T>(
       ? undefined
       : await response.json(),
   };
-} 
+}
