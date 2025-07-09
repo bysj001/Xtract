@@ -96,7 +96,7 @@ User Request → Xtract Backend (Vercel) → Audio Extraction Service (Railway)
 ## Usage Examples
 
 ### Complete Audio Extraction Workflow
-```bash
+   ```bash
 curl -X POST https://your-vercel-app.vercel.app/api/extract-audio \
   -H "Content-Type: application/json" \
   -d '{
@@ -129,12 +129,12 @@ Response:
 ### Individual Endpoints
 
 #### Get Instagram Post Metadata
-```bash
+   ```bash
 curl https://your-vercel-app.vercel.app/api/instagram/p/ABC123DEF456
-```
+   ```
 
 #### Download Video Temporarily
-```bash
+   ```bash
 curl "https://your-vercel-app.vercel.app/api/download-proxy?url=VIDEO_URL&shortcode=ABC123DEF456"
 ```
 

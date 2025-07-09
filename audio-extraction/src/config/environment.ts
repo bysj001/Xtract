@@ -23,8 +23,8 @@ export function validateEnvironment(): EnvironmentConfig {
     MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE || '100'), // MB
     CLEANUP_INTERVAL_HOURS: parseInt(process.env.CLEANUP_INTERVAL_HOURS || '1'),
     FILE_RETENTION_HOURS: parseInt(process.env.FILE_RETENTION_HOURS || '2'),
-    SUPABASE_URL: process.env.SUPABASE_URL || '',
-    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
+    SUPABASE_URL: process.env.SUPABASE_URL || 'https://wgskngtfekehqpnbbanz.supabase.co',
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnc2tuZ3RmZWtlaHFwbmJiYW56Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2MjI2ODIsImV4cCI6MjA2NjE5ODY4Mn0.iBKnwjDDPaoKI1-kTPdEEKMu3ZPskq95NaxQym4LmRw',
   };
 
   // Validate PORT
@@ -39,14 +39,12 @@ export function validateEnvironment(): EnvironmentConfig {
     throw new Error('Invalid XTRACT_BACKEND_URL: must be a valid URL');
   }
 
-  // Validate Supabase credentials (required in production)
-  if (requiredVars.NODE_ENV === 'production') {
-    if (!requiredVars.SUPABASE_URL) {
-      throw new Error('SUPABASE_URL is required in production');
-    }
-    if (!requiredVars.SUPABASE_ANON_KEY) {
-      throw new Error('SUPABASE_ANON_KEY is required in production');
-    }
+  // Validate Supabase credentials
+  if (!requiredVars.SUPABASE_URL) {
+    throw new Error('SUPABASE_URL is required');
+  }
+  if (!requiredVars.SUPABASE_ANON_KEY) {
+    throw new Error('SUPABASE_ANON_KEY is required');
   }
 
   // Validate SUPABASE_URL if provided
