@@ -15,24 +15,10 @@ export class AudioProcessor {
     
     // Set the path to the ffmpeg binary from ffmpeg-static
     if (ffmpegStatic) {
-      console.log(`[INFO] Raw ffmpeg-static path: ${ffmpegStatic}`);
-      
-      // Resolve the full path and check if it exists
-      const resolvedPath = require('path').resolve(ffmpegStatic);
-      console.log(`[INFO] Resolved FFmpeg path: ${resolvedPath}`);
-      
-      try {
-        require('fs').accessSync(resolvedPath, require('fs').constants.F_OK);
-        ffmpeg.setFfmpegPath(resolvedPath);
-        console.log(`[INFO] FFmpeg binary found and path set successfully`);
-      } catch (error) {
-        console.error(`[ERROR] FFmpeg binary not accessible at ${resolvedPath}:`, error);
-        // Try using just 'ffmpeg' as fallback (system PATH)
-        ffmpeg.setFfmpegPath('ffmpeg');
-        console.log(`[INFO] Falling back to system ffmpeg`);
-      }
+      console.log(`[INFO] Using ffmpeg-static path: ${ffmpegStatic}`);
+      ffmpeg.setFfmpegPath(ffmpegStatic);
     } else {
-      console.error('[ERROR] Could not find ffmpeg-static binary. Trying system ffmpeg.');
+      console.log('[INFO] ffmpeg-static not available, using system ffmpeg');
       ffmpeg.setFfmpegPath('ffmpeg');
     }
   }
