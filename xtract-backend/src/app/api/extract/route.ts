@@ -3,6 +3,8 @@ import { supabase } from "@/lib/supabase";
 import { AudioProcessor } from "@/lib/audio-processor";
 import { extractShortcodeFromUrl, isShortcodePresent } from "@/lib/instagram-utils";
 import { HTTP_CODE_ENUM } from "@/features/api/http-codes";
+import { getInstagramPostGraphQL } from "@/app/api/instagram/p/[shortcode]/utils";
+import { IG_GraphQLResponseDto } from "@/features/api/_dto/instagram";
 
 // Request/Response types for mobile app
 interface ExtractRequest {
@@ -88,24 +90,29 @@ export async function POST(request: NextRequest) {
 
     console.log(`[INFO] Extracted shortcode: ${shortcode}`);
 
-    // Step 1: Fast Instagram API call using our lightweight endpoint
-    const baseUrl = request.nextUrl.origin;
-    const instagramResponse = await fetch(`${baseUrl}/api/instagram/p/${shortcode}`);
+    // Step 1: Fast Instagram GraphQL call (direct function call to avoid self-referencing issues)
+    console.log(`[INFO] Calling Instagram GraphQL for shortcode: ${shortcode}`);
     
-    console.log(`[INFO] Instagram endpoint response status: ${instagramResponse.status}`);
+    let instagramResponse;
+    try {
+      instagramResponse = await getInstagramPostGraphQL({ shortcode });
+      console.log(`[INFO] Instagram GraphQL response status: ${instagramResponse.status}`);
+    } catch (fetchError: any) {
+      console.error(`[ERROR] Failed to call Instagram GraphQL:`, fetchError);
+      throw new Error(`Failed to call Instagram GraphQL: ${fetchError.message}`);
+    }
     
     if (!instagramResponse.ok) {
-      const errorData = await instagramResponse.json();
       if (instagramResponse.status === 429) {
         throw new Error('Instagram rate limited - too many requests, try again later');
       } else if (instagramResponse.status === 404) {
         throw new Error('Instagram post not found');
       } else {
-        throw new Error(`Instagram API error: ${errorData.message || 'Unknown error'}`);
+        throw new Error(`Instagram GraphQL error: HTTP ${instagramResponse.status}`);
       }
     }
 
-    const { data } = await instagramResponse.json();
+    const { data } = await instagramResponse.json() as IG_GraphQLResponseDto;
     
     if (!data.xdt_shortcode_media) {
       throw new Error('Instagram post not found');
@@ -119,6 +126,7 @@ export async function POST(request: NextRequest) {
     console.log(`[INFO] Got Instagram video URL: ${videoUrl.substring(0, 50)}...`);
 
     // Step 2: Process audio extraction using proxy approach (separate from Instagram call)
+    const baseUrl = request.nextUrl.origin;
     const audioProcessor = new AudioProcessor(baseUrl);
     const audioFileId = await audioProcessor.processInstagramVideo(videoUrl, user_id);
 
