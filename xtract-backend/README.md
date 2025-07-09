@@ -49,13 +49,13 @@ Create a `.env.local` file in the root directory:
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
 
 # Audio extraction service URL (Railway deployment)
-AUDIO_EXTRACTION_SERVICE_URL=https://your-railway-app.railway.app
+AUDIO_EXTRACTION_SERVICE_URL=https://xtract-production.up.railway.app
 ```
 
 For production (Vercel), set these in your Vercel project settings:
 ```env
-NEXT_PUBLIC_BASE_URL=https://your-vercel-app.vercel.app
-AUDIO_EXTRACTION_SERVICE_URL=https://your-railway-app.railway.app
+NEXT_PUBLIC_BASE_URL=https://xtract-otimib3km-brians-projects-998b86c6.vercel.app
+AUDIO_EXTRACTION_SERVICE_URL=https://xtract-production.up.railway.app
 ```
 
 ## Deployment to Vercel
@@ -97,10 +97,11 @@ User Request → Xtract Backend (Vercel) → Audio Extraction Service (Railway)
 
 ### Complete Audio Extraction Workflow
    ```bash
-curl -X POST https://your-vercel-app.vercel.app/api/extract-audio \
+curl -X POST https://xtract-otimib3km-brians-projects-998b86c6.vercel.app/api/extract-audio \
   -H "Content-Type: application/json" \
   -d '{
     "instagramUrl": "https://www.instagram.com/p/ABC123DEF456/",
+    "userId": "user-123",
     "format": "mp3",
     "quality": "medium"
   }'
@@ -112,8 +113,8 @@ Response:
   "success": true,
   "data": {
     "jobId": "550e8400-e29b-41d4-a716-446655440000",
-    "audioUrl": "https://audio-service.railway.app/api/extract/download/550e8400-e29b-41d4-a716-446655440000",
-    "statusUrl": "https://audio-service.railway.app/api/extract/status/550e8400-e29b-41d4-a716-446655440000",
+    "audioUrl": "https://xtract-production.up.railway.app/api/extract/download/550e8400-e29b-41d4-a716-446655440000",
+    "statusUrl": "https://xtract-production.up.railway.app/api/extract/status/550e8400-e29b-41d4-a716-446655440000",
     "format": "mp3",
     "size": 1234567,
     "duration": 180.5,
@@ -130,12 +131,12 @@ Response:
 
 #### Get Instagram Post Metadata
    ```bash
-curl https://your-vercel-app.vercel.app/api/instagram/p/ABC123DEF456
+curl https://xtract-otimib3km-brians-projects-998b86c6.vercel.app/api/instagram/p/ABC123DEF456
    ```
 
 #### Download Video Temporarily
    ```bash
-curl "https://your-vercel-app.vercel.app/api/download-proxy?url=VIDEO_URL&shortcode=ABC123DEF456"
+curl "https://xtract-otimib3km-brians-projects-998b86c6.vercel.app/api/download-proxy?url=VIDEO_URL&shortcode=ABC123DEF456"
 ```
 
 ## File Management

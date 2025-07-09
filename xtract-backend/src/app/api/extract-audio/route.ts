@@ -64,8 +64,7 @@ export async function POST(request: NextRequest) {
     const downloadData = await downloadResponse.json();
 
     // Step 3: Send to audio extraction service with user information
-    // TODO: Replace with your actual Railway deployment URL
-    const audioExtractionUrl = process.env.AUDIO_EXTRACTION_SERVICE_URL || 'https://your-railway-app.railway.app';
+    const audioExtractionUrl = process.env.AUDIO_EXTRACTION_SERVICE_URL || 'https://xtract-production.up.railway.app';
     
     const extractionResponse = await fetch(
       `${audioExtractionUrl}/api/extract/from-url`,
