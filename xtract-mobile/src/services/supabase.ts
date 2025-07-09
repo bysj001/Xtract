@@ -153,13 +153,13 @@ export class ProcessingService {
 }
 
 export class BackendService {
-  // Railway deployment URL 
-  // Project: https://railway.com/project/4464aee6-e98c-44a6-bd82-20efc0044ebc
-  private static BACKEND_URL = 'https://xtract-production.up.railway.app';
+  // Vercel deployment URL - Switched to FFmpeg WASM implementation
+  // Project: https://vercel.com/brians-projects-998b86c6/xtractbackend
+  private static BACKEND_URL = 'https://xtractbackend-d497scueh-brians-projects-998b86c6.vercel.app';
 
   static async processVideoUrl(url: string, userId: string): Promise<{ jobId: string; audioFileId?: string }> {
     try {
-      const response = await fetch(`${this.BACKEND_URL}/extract`, {
+      const response = await fetch(`${this.BACKEND_URL}/api/extract`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
