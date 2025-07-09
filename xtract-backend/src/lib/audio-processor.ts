@@ -13,14 +13,52 @@ export class AudioProcessor {
     this.tempDir = '/tmp';
     this.baseUrl = baseUrl || 'http://localhost:3000'; // Default for local dev
     
-    // Set the path to the ffmpeg binary from ffmpeg-static
-    if (ffmpegStatic) {
-      console.log(`[INFO] Using ffmpeg-static path: ${ffmpegStatic}`);
-      ffmpeg.setFfmpegPath(ffmpegStatic);
-    } else {
-      console.log('[INFO] ffmpeg-static not available, using system ffmpeg');
-      ffmpeg.setFfmpegPath('ffmpeg');
+    this.setupFFmpegSync();
+  }
+
+  private setupFFmpegSync() {
+    console.log('[INFO] Setting up FFmpeg...');
+    
+    // Try ffmpeg-static first
+    if (ffmpegStatic && typeof ffmpegStatic === 'string') {
+      try {
+        const ffmpegStaticPath = ffmpegStatic;
+        console.log(`[INFO] Checking ffmpeg-static path: ${ffmpegStaticPath}`);
+        
+        // Check if file exists and is executable
+        const fs = require('fs');
+        fs.accessSync(ffmpegStaticPath, fs.constants.F_OK | fs.constants.X_OK);
+        
+        ffmpeg.setFfmpegPath(ffmpegStaticPath);
+        console.log(`[SUCCESS] Using ffmpeg-static: ${ffmpegStaticPath}`);
+        return;
+      } catch (error) {
+        console.warn(`[WARNING] ffmpeg-static not accessible (${ffmpegStatic}):`, error);
+      }
     }
+    
+    // Try common system paths
+    const systemPaths = [
+      '/usr/bin/ffmpeg',
+      '/usr/local/bin/ffmpeg', 
+      '/bin/ffmpeg',
+    ];
+    
+    const fs = require('fs');
+    for (const ffmpegPath of systemPaths) {
+      try {
+        fs.accessSync(ffmpegPath, fs.constants.F_OK);
+        ffmpeg.setFfmpegPath(ffmpegPath);
+        console.log(`[SUCCESS] Using system ffmpeg: ${ffmpegPath}`);
+        return;
+      } catch (error) {
+        console.log(`[INFO] FFmpeg not found at: ${ffmpegPath}`);
+      }
+    }
+    
+    // Fallback to 'ffmpeg' (let the system handle it - Nixpacks should install it)
+    console.log('[INFO] Using system PATH ffmpeg (Nixpacks should have installed it)');
+    ffmpeg.setFfmpegPath('ffmpeg');
   }
 
   async downloadVideo(videoUrl: string): Promise<string> {

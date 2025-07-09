@@ -20,69 +20,6 @@ interface ExtractResponse {
   error?: string;
 }
 
-// Helper function to add delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Retry function with exponential backoff
-async function fetchInstagramWithRetry(shortcode: string, maxRetries = 3): Promise<{ success: boolean; data?: any; error?: string }> {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`[INFO] Instagram API attempt ${attempt}/${maxRetries} for shortcode: ${shortcode}`);
-      
-      const response = await getInstagramPostGraphQL({ shortcode });
-      const status = response.status;
-
-      if (status === 200) {
-        const { data } = (await response.json()) as IG_GraphQLResponseDto;
-        
-        if (!data.xdt_shortcode_media) {
-          return { success: false, error: 'Instagram post not found' };
-        }
-
-        if (!data.xdt_shortcode_media.is_video) {
-          return { success: false, error: 'Instagram post is not a video' };
-        }
-
-        return { success: true, data: data.xdt_shortcode_media };
-      }
-
-      if (status === 404) {
-        return { success: false, error: 'Instagram post not found' };
-      }
-
-      if (status === 429 || status === 401) {
-        const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
-        console.log(`[WARNING] Instagram rate limited (attempt ${attempt}/${maxRetries}). Waiting ${waitTime}ms before retry...`);
-        
-        if (attempt < maxRetries) {
-          await delay(waitTime);
-          continue;
-        } else {
-          return { success: false, error: 'Instagram rate limited - please try again in a few minutes' };
-        }
-      }
-
-      // Other errors
-      console.error(`[ERROR] Instagram API returned status ${status}`);
-      return { success: false, error: `Instagram API error: ${status}` };
-
-    } catch (error: any) {
-      console.error(`[ERROR] Instagram API attempt ${attempt} failed:`, error.message);
-      
-      if (attempt < maxRetries) {
-        const waitTime = Math.pow(2, attempt) * 1000;
-        console.log(`[INFO] Retrying in ${waitTime}ms...`);
-        await delay(waitTime);
-        continue;
-      } else {
-        return { success: false, error: `Instagram API failed after ${maxRetries} attempts: ${error.message}` };
-      }
-    }
-  }
-
-  return { success: false, error: 'Max retries exceeded' };
-}
-
 export async function POST(request: NextRequest) {
   let jobId: string | null = null;
   
@@ -153,58 +90,62 @@ export async function POST(request: NextRequest) {
 
     console.log(`[INFO] Extracted shortcode: ${shortcode}`);
 
-    // Fetch Instagram data with retry logic
-    const instagramResult = await fetchInstagramWithRetry(shortcode);
-    
-    if (!instagramResult.success) {
-      if (instagramResult.error?.includes('rate limited')) {
-        // Return 429 status for rate limiting so mobile app can handle it appropriately
-        await supabase
-          .from('processing_jobs')
-          .update({
-            status: 'failed',
-            error_message: instagramResult.error,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', jobId);
+    // Use exact same Instagram implementation as working project
+    const response = await getInstagramPostGraphQL({
+      shortcode,
+    });
 
-        return NextResponse.json({
-          success: false,
-          job_id: jobId,
-          error: instagramResult.error,
-          message: "Rate limited - please try again in a few minutes",
-        } as ExtractResponse, { status: 429 }); // Return 429 status
-      }
+    const status = response.status;
+
+    if (status === 200) {
+      const { data } = (await response.json()) as IG_GraphQLResponseDto;
       
-      throw new Error(instagramResult.error || 'Failed to fetch Instagram data');
+      if (!data.xdt_shortcode_media) {
+        throw new Error('Instagram post not found');
+      }
+
+      if (!data.xdt_shortcode_media.is_video) {
+        throw new Error('Instagram post is not a video');
+      }
+
+      const videoUrl = data.xdt_shortcode_media.video_url;
+      console.log(`[INFO] Got Instagram video URL: ${videoUrl.substring(0, 50)}...`);
+
+      // Process audio extraction using exact same proxy approach as working project
+      const baseUrl = request.nextUrl.origin;
+      const audioProcessor = new AudioProcessor(baseUrl);
+      const audioFileId = await audioProcessor.processInstagramVideo(videoUrl, user_id);
+
+      // Update job as completed
+      await supabase
+        .from('processing_jobs')
+        .update({
+          status: 'completed',
+          result_audio_file_id: audioFileId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+
+      console.log(`[SUCCESS] Audio extraction completed. Job: ${jobId}, Audio file: ${audioFileId}`);
+
+      return NextResponse.json({
+        success: true,
+        job_id: jobId,
+        audio_file_id: audioFileId,
+        message: "Audio extraction completed successfully",
+      } as ExtractResponse, { status: HTTP_CODE_ENUM.OK });
+
     }
 
-    const videoUrl = instagramResult.data.video_url;
-    console.log(`[INFO] Got Instagram video URL: ${videoUrl.substring(0, 50)}...`);
+    if (status === 404) {
+      throw new Error('Instagram post not found');
+    }
 
-    // Process audio extraction
-    const baseUrl = request.nextUrl.origin;
-    const audioProcessor = new AudioProcessor(baseUrl);
-    const audioFileId = await audioProcessor.processInstagramVideo(videoUrl, user_id);
+    if (status === 429 || status === 401) {
+      throw new Error('Instagram rate limited - too many requests, try again later');
+    }
 
-    // Update job as completed
-    await supabase
-      .from('processing_jobs')
-      .update({
-        status: 'completed',
-        result_audio_file_id: audioFileId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', jobId);
-
-    console.log(`[SUCCESS] Audio extraction completed. Job: ${jobId}, Audio file: ${audioFileId}`);
-
-    return NextResponse.json({
-      success: true,
-      job_id: jobId,
-      audio_file_id: audioFileId,
-      message: "Audio extraction completed successfully",
-    } as ExtractResponse, { status: HTTP_CODE_ENUM.OK });
+    throw new Error("Failed to fetch post data");
 
   } catch (error: any) {
     const errorMessage = `Audio extraction failed: ${error.message}`;
