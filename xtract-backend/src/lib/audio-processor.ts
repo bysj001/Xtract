@@ -23,24 +23,22 @@ export class AudioProcessor {
   }
 
   async downloadVideo(videoUrl: string): Promise<string> {
-    const randomTime = new Date().getTime().toString().slice(-8);
-    const filename = `xtract_video_${randomTime}.mp4`;
-    
-    // The proxy is still a good idea to avoid direct server IP exposure to Instagram
-    const proxyUrl = new URL("/api/download-proxy", this.baseUrl);
-    proxyUrl.searchParams.append("url", videoUrl);
-    proxyUrl.searchParams.append("filename", filename);
+    console.log(`[INFO] Downloading video directly from: ${videoUrl.substring(0, 50)}...`);
 
-    console.log(`[INFO] Using proxy URL for download: ${proxyUrl.toString()}`);
-
-    const response = await fetch(proxyUrl.toString(), {
+    // Direct download from Instagram CDN (server-side, no proxy needed)
+    const response = await fetch(videoUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 11; SAMSUNG SM-G973U) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/14.2 Chrome/87.0.4280.141 Mobile Safari/537.36',
+        'Accept': 'video/mp4,video/*,*/*',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Sec-Fetch-Dest': 'video',
+        'Sec-Fetch-Mode': 'no-cors',
+        'Sec-Fetch-Site': 'cross-site',
       },
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to download video via proxy: ${response.statusText}`);
+      throw new Error(`Failed to download video: ${response.statusText}`);
     }
 
     const videoBuffer = await response.arrayBuffer();

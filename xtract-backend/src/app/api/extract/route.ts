@@ -90,64 +90,62 @@ export async function POST(request: NextRequest) {
 
     console.log(`[INFO] Extracted shortcode: ${shortcode}`);
 
-    // Step 1: Fast Instagram GraphQL call (direct function call to avoid self-referencing issues)
-    console.log(`[INFO] Calling Instagram GraphQL for shortcode: ${shortcode}`);
-    
-    let instagramResponse;
-    try {
-      instagramResponse = await getInstagramPostGraphQL({ shortcode });
-      console.log(`[INFO] Instagram GraphQL response status: ${instagramResponse.status}`);
-    } catch (fetchError: any) {
-      console.error(`[ERROR] Failed to call Instagram GraphQL:`, fetchError);
-      throw new Error(`Failed to call Instagram GraphQL: ${fetchError.message}`);
-    }
-    
-    if (!instagramResponse.ok) {
-      if (instagramResponse.status === 429) {
-        throw new Error('Instagram rate limited - too many requests, try again later');
-      } else if (instagramResponse.status === 404) {
+    // Use exact same Instagram implementation as working project
+    const response = await getInstagramPostGraphQL({
+      shortcode,
+    });
+
+    const status = response.status;
+
+    if (status === 200) {
+      const { data } = (await response.json()) as IG_GraphQLResponseDto;
+      
+      if (!data.xdt_shortcode_media) {
         throw new Error('Instagram post not found');
-      } else {
-        throw new Error(`Instagram GraphQL error: HTTP ${instagramResponse.status}`);
       }
+
+      if (!data.xdt_shortcode_media.is_video) {
+        throw new Error('Instagram post is not a video');
+      }
+
+      const videoUrl = data.xdt_shortcode_media.video_url;
+      console.log(`[INFO] Got Instagram video URL: ${videoUrl.substring(0, 50)}...`);
+
+      // Process audio extraction using exact same proxy approach as working project
+      const baseUrl = request.nextUrl.origin;
+      const audioProcessor = new AudioProcessor(baseUrl);
+      const audioFileId = await audioProcessor.processInstagramVideo(videoUrl, user_id);
+
+      // Update job as completed
+      await supabase
+        .from('processing_jobs')
+        .update({
+          status: 'completed',
+          result_audio_file_id: audioFileId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+
+      console.log(`[SUCCESS] Audio extraction completed. Job: ${jobId}, Audio file: ${audioFileId}`);
+
+      return NextResponse.json({
+        success: true,
+        job_id: jobId,
+        audio_file_id: audioFileId,
+        message: "Audio extraction completed successfully",
+      } as ExtractResponse, { status: HTTP_CODE_ENUM.OK });
+
     }
 
-    const { data } = await instagramResponse.json() as IG_GraphQLResponseDto;
-    
-    if (!data.xdt_shortcode_media) {
+    if (status === 404) {
       throw new Error('Instagram post not found');
     }
 
-    if (!data.xdt_shortcode_media.is_video) {
-      throw new Error('Instagram post is not a video');
+    if (status === 429 || status === 401) {
+      throw new Error('Instagram rate limited - too many requests, try again later');
     }
 
-    const videoUrl = data.xdt_shortcode_media.video_url;
-    console.log(`[INFO] Got Instagram video URL: ${videoUrl.substring(0, 50)}...`);
-
-    // Step 2: Process audio extraction using proxy approach (separate from Instagram call)
-    const baseUrl = request.nextUrl.origin;
-    const audioProcessor = new AudioProcessor(baseUrl);
-    const audioFileId = await audioProcessor.processInstagramVideo(videoUrl, user_id);
-
-    // Update job as completed
-    await supabase
-      .from('processing_jobs')
-      .update({
-        status: 'completed',
-        result_audio_file_id: audioFileId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', jobId);
-
-    console.log(`[SUCCESS] Audio extraction completed. Job: ${jobId}, Audio file: ${audioFileId}`);
-
-    return NextResponse.json({
-      success: true,
-      job_id: jobId,
-      audio_file_id: audioFileId,
-      message: "Audio extraction completed successfully",
-    } as ExtractResponse, { status: HTTP_CODE_ENUM.OK });
+    throw new Error("Failed to fetch post data");
 
   } catch (error: any) {
     const errorMessage = `Audio extraction failed: ${error.message}`;
