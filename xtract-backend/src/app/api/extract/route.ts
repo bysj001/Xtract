@@ -100,7 +100,28 @@ export async function POST(request: NextRequest) {
     console.log(`[INFO] Instagram GraphQL response status: ${status}`);
 
     if (status === 200) {
-      const { data } = (await response.json()) as IG_GraphQLResponseDto;
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      console.log(`[INFO] Instagram response content-type: ${contentType}`);
+      
+      let responseData;
+      try {
+        if (contentType && contentType.includes('application/json')) {
+          responseData = (await response.json()) as IG_GraphQLResponseDto;
+        } else {
+          // If not JSON, read as text to see what we got
+          const responseText = await response.text();
+          console.log(`[ERROR] Instagram returned non-JSON response: ${responseText.substring(0, 200)}...`);
+          throw new Error('Instagram returned non-JSON response - possibly rate limited or blocked');
+        }
+      } catch (parseError: any) {
+        console.error(`[ERROR] Failed to parse Instagram response:`, parseError);
+        const responseText = await response.text();
+        console.log(`[ERROR] Raw response: ${responseText.substring(0, 200)}...`);
+        throw new Error(`Failed to parse Instagram response: ${parseError.message}`);
+      }
+
+      const { data } = responseData;
       
       if (!data.xdt_shortcode_media) {
         throw new Error('Instagram post not found');
@@ -142,7 +163,14 @@ export async function POST(request: NextRequest) {
     } else if (status === 429 || status === 401) {
       throw new Error('Instagram rate limited - too many requests, try again later');
     } else {
-      throw new Error(`Instagram API returned status: ${status}`);
+      // For other error statuses, try to get the response text for debugging
+      try {
+        const errorText = await response.text();
+        console.log(`[ERROR] Instagram error response (${status}): ${errorText.substring(0, 200)}...`);
+        throw new Error(`Instagram API returned status ${status}: ${errorText.substring(0, 100)}`);
+      } catch {
+        throw new Error(`Instagram API returned status: ${status}`);
+      }
     }
 
   } catch (error: any) {
