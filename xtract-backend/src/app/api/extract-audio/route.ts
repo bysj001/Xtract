@@ -29,8 +29,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 1: Get Instagram post data
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `${request.nextUrl.protocol}//${request.nextUrl.host}`;
     const postResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/instagram/p/${shortcode}`,
+      `${baseUrl}/api/instagram/p/${shortcode}`,
       { method: 'GET' }
     );
 
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // Step 2: Download video temporarily
     const downloadResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/download-proxy?url=${encodeURIComponent(videoUrl)}&shortcode=${shortcode}`,
+      `${baseUrl}/api/download-proxy?url=${encodeURIComponent(videoUrl)}&shortcode=${shortcode}`,
       { method: 'GET' }
     );
 
@@ -63,7 +64,8 @@ export async function POST(request: NextRequest) {
     const downloadData = await downloadResponse.json();
 
     // Step 3: Send to audio extraction service with user information
-    const audioExtractionUrl = process.env.AUDIO_EXTRACTION_SERVICE_URL || 'http://localhost:3001';
+    // TODO: Replace with your actual Railway deployment URL
+    const audioExtractionUrl = process.env.AUDIO_EXTRACTION_SERVICE_URL || 'https://your-railway-app.railway.app';
     
     const extractionResponse = await fetch(
       `${audioExtractionUrl}/api/extract/from-url`,
