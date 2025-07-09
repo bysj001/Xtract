@@ -153,9 +153,9 @@ export class ProcessingService {
 }
 
 export class BackendService {
-  // Vercel deployment URL - Switched to FFmpeg WASM implementation
-  // Project: https://vercel.com/brians-projects-998b86c6/xtractbackend
-  private static BACKEND_URL = 'https://xtractbackend-d497scueh-brians-projects-998b86c6.vercel.app';
+  // Railway deployment URL - Node.js with ffmpeg-static implementation
+  // Project: https://railway.app
+  private static BACKEND_URL = 'https://xtract-production.up.railway.app';
 
   static async processVideoUrl(url: string, userId: string): Promise<{ jobId: string; audioFileId?: string }> {
     try {
