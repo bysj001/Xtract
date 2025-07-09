@@ -51,12 +51,13 @@ export async function GET(request: NextRequest) {
     await writeFile(filepath, buffer);
 
     // Return the temporary file info
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `${request.nextUrl.protocol}//${request.nextUrl.host}`;
     return NextResponse.json({
       success: true,
       tempFile: filename,
       filepath: filepath,
       size: buffer.length,
-      downloadUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/temp-file/${filename}`,
+      downloadUrl: `${baseUrl}/api/temp-file/${filename}`,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
     });
   } catch (error: any) {
