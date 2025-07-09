@@ -22,14 +22,14 @@ router.post('/from-url', validateExtractionRequest, async (req, res) => {
       videoTitle,
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: result,
     });
   } catch (error: any) {
     console.error('Audio extraction error:', error);
     
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'extraction_failed',
       message: error.message,
@@ -52,14 +52,14 @@ router.get('/status/:jobId', async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: status,
     });
   } catch (error: any) {
     console.error('Status check error:', error);
     
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'status_check_failed',
       message: error.message,
@@ -83,11 +83,11 @@ router.get('/download/:jobId', async (req, res) => {
     }
 
     // Redirect to Supabase storage URL
-    res.redirect(302, supabaseUrl);
+    return res.redirect(302, supabaseUrl);
   } catch (error: any) {
     console.error('Download error:', error);
     
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'download_failed',
       message: error.message,
@@ -110,7 +110,7 @@ router.get('/download-url/:jobId', async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         downloadUrl: supabaseUrl,
@@ -120,7 +120,7 @@ router.get('/download-url/:jobId', async (req, res) => {
   } catch (error: any) {
     console.error('Download URL error:', error);
     
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'download_url_failed',
       message: error.message,
