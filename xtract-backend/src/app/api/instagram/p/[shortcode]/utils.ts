@@ -44,6 +44,8 @@ export type GetInstagramPostRequest = {
   shortcode: string;
 };
 
+export type GetInstagramPostResponse = IG_GraphQLResponseDto;
+
 export function getInstagramPostGraphQL(
   data: GetInstagramPostRequest,
   requestConfig?: RequestConfigType
