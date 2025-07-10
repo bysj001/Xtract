@@ -1,21 +1,54 @@
 import express from 'express';
 import { AudioExtractionService } from '../services/audioExtraction';
-import { validateExtractionRequest } from '../middleware/validation';
+import { validateExtractionRequest, validateSupabaseExtractionRequest } from '../middleware/validation';
 
 const router = express.Router();
 const audioService = new AudioExtractionService();
 
-// POST /api/extract/from-url
-// Extract audio from a video URL (from xtract-backend)
+// NEW: POST /api/extract/from-supabase
+// Process video directly from Supabase storage (native sharing flow)
+router.post('/from-supabase', validateSupabaseExtractionRequest, async (req, res) => {
+  try {
+    const { jobId, userId, videoPath, format = 'mp3', quality = 'medium', videoTitle } = req.body;
+
+    console.log(`🎬 Starting Supabase video processing for job: ${jobId}, user: ${userId}`);
+    console.log(`📁 Video path: ${videoPath}`);
+
+    const result = await audioService.extractAudioFromSupabase({
+      jobId,
+      userId,
+      videoPath,
+      format,
+      quality,
+      videoTitle,
+    });
+
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Supabase audio extraction error:', error);
+    
+    return res.status(500).json({
+      success: false,
+      error: 'extraction_failed',
+      message: error.message,
+    });
+  }
+});
+
+// UPDATED: POST /api/extract/from-url
+// Extract audio from a video URL (legacy method for manual URL input)
 router.post('/from-url', validateExtractionRequest, async (req, res) => {
   try {
-    const { videoUrl, shortcode, userId, format = 'mp3', quality = 'medium', videoTitle } = req.body;
+    const { jobId, videoUrl, userId, format = 'mp3', quality = 'medium', videoTitle } = req.body;
 
-    console.log(`Starting audio extraction for user: ${userId}, shortcode: ${shortcode}`);
+    console.log(`🔗 Starting URL video processing for job: ${jobId || 'legacy'}, user: ${userId}`);
 
     const result = await audioService.extractAudioFromUrl({
+      jobId,
       videoUrl,
-      shortcode,
       userId,
       format,
       quality,
@@ -27,7 +60,7 @@ router.post('/from-url', validateExtractionRequest, async (req, res) => {
       data: result,
     });
   } catch (error: any) {
-    console.error('Audio extraction error:', error);
+    console.error('URL audio extraction error:', error);
     
     return res.status(500).json({
       success: false,

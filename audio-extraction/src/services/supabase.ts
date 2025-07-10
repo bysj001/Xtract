@@ -12,6 +12,24 @@ export class SupabaseService {
     );
   }
 
+  // Expose client for specific operations (like storage downloads)
+  get supabaseClient(): SupabaseClient<Database> {
+    return this.client;
+  }
+
+  // Download video file from Supabase storage
+  async downloadVideoFile(storagePath: string): Promise<Blob> {
+    const { data, error } = await this.client.storage
+      .from('videos')
+      .download(storagePath);
+
+    if (error || !data) {
+      throw new Error(`Failed to download video: ${error?.message || 'No data'}`);
+    }
+
+    return data;
+  }
+
   // Audio File operations
   async createAudioFile(audioFile: Database['public']['Tables']['audio_files']['Insert']): Promise<AudioFile> {
     const { data, error } = await this.client
@@ -88,15 +106,14 @@ export class SupabaseService {
   }
 
   // Processing Job operations
-  async createProcessingJob(job: Database['public']['Tables']['processing_jobs']['Insert']): Promise<ProcessingJob> {
+  async createProcessingJob(jobData: Omit<ProcessingJob, 'id' | 'created_at' | 'updated_at'>): Promise<ProcessingJob> {
     const { data, error } = await this.client
       .from('processing_jobs')
-      .insert(job)
+      .insert(jobData)
       .select()
       .single();
 
     if (error) {
-      console.error('Supabase error creating processing job:', error);
       throw new Error(`Failed to create processing job: ${error.message}`);
     }
 
@@ -119,16 +136,18 @@ export class SupabaseService {
     return data;
   }
 
-  async getProcessingJob(id: string): Promise<ProcessingJob | null> {
+  async getProcessingJob(jobId: string): Promise<ProcessingJob | null> {
     const { data, error } = await this.client
       .from('processing_jobs')
       .select('*')
-      .eq('id', id)
+      .eq('id', jobId)
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') return null; // Not found
-      console.error('Supabase error getting processing job:', error);
+      if (error.code === 'PGRST116') {
+        // No rows returned
+        return null;
+      }
       throw new Error(`Failed to get processing job: ${error.message}`);
     }
 

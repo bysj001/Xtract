@@ -3,7 +3,6 @@
 export interface EnvironmentConfig {
   NODE_ENV: 'development' | 'production' | 'test';
   PORT: number;
-  XTRACT_BACKEND_URL: string;
   ALLOWED_ORIGINS: string[];
   TEMP_DIR: string;
   MAX_FILE_SIZE: number;
@@ -17,8 +16,8 @@ export function validateEnvironment(): EnvironmentConfig {
   const requiredVars = {
     NODE_ENV: process.env.NODE_ENV || 'development',
     PORT: parseInt(process.env.PORT || '8080'),
-    XTRACT_BACKEND_URL: process.env.XTRACT_BACKEND_URL || 'https://xtract-azh16the6-brians-projects-998b86c6.vercel.app',
-    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS?.split(',') || ['https://xtract-azh16the6-brians-projects-998b86c6.vercel.app'],
+    // Removed XTRACT_BACKEND_URL - no longer using Vercel backend
+    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS?.split(',') || ['https://xtract-mobile.app'], // Updated for mobile app
     TEMP_DIR: process.env.TEMP_DIR || './temp',
     MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE || '100'), // MB
     CLEANUP_INTERVAL_HOURS: parseInt(process.env.CLEANUP_INTERVAL_HOURS || '1'),
@@ -32,13 +31,6 @@ export function validateEnvironment(): EnvironmentConfig {
     throw new Error('Invalid PORT: must be a number between 1 and 65535');
   }
 
-  // Validate XTRACT_BACKEND_URL
-  try {
-    new URL(requiredVars.XTRACT_BACKEND_URL);
-  } catch {
-    throw new Error('Invalid XTRACT_BACKEND_URL: must be a valid URL');
-  }
-
   // Validate Supabase credentials
   if (!requiredVars.SUPABASE_URL) {
     throw new Error('SUPABASE_URL is required');
@@ -47,13 +39,11 @@ export function validateEnvironment(): EnvironmentConfig {
     throw new Error('SUPABASE_ANON_KEY is required');
   }
 
-  // Validate SUPABASE_URL if provided
-  if (requiredVars.SUPABASE_URL) {
-    try {
-      new URL(requiredVars.SUPABASE_URL);
-    } catch {
-      throw new Error('Invalid SUPABASE_URL: must be a valid URL');
-    }
+  // Validate SUPABASE_URL
+  try {
+    new URL(requiredVars.SUPABASE_URL);
+  } catch {
+    throw new Error('Invalid SUPABASE_URL: must be a valid URL');
   }
 
   // Validate numeric values

@@ -22,6 +22,7 @@ export interface ProcessingJob {
   user_id: string;
   video_url: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  source_type?: 'native_share' | 'url_input'; // New field to track processing source
   error_message?: string;
   audio_file_id?: string;
   created_at: string;

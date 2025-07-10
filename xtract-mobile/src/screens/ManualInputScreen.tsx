@@ -51,7 +51,7 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
 
     setLoading(true);
     try {
-      // Call the Railway backend to process the video
+      // Call the backend to process the video URL (may hit Instagram rate limits)
       const result = await BackendService.processVideoUrl(url.trim(), user.id);
 
       Alert.alert(
@@ -103,7 +103,10 @@ export const ManualInputScreen: React.FC<ManualInputScreenProps> = ({ navigation
                 Paste a link from any supported video platform
               </Text>
               <Text style={styles.platformNote}>
-                ✅ Best: TikTok • YouTube  •  ⚠️ Instagram (may be limited)
+                💡 TIP: Share videos directly from Instagram to avoid rate limits!
+              </Text>
+              <Text style={styles.warningNote}>
+                ⚠️ URL method may hit Instagram rate limits
               </Text>
             </View>
 
@@ -211,6 +214,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     fontWeight: '500',
+  },
+  warningNote: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
+    opacity: 0.7,
   },
   content: {
     flex: 1,

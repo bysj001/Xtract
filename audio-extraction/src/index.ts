@@ -58,5 +58,5 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`🎵 Audio extraction service running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Backend URL: ${process.env.XTRACT_BACKEND_URL || 'https://xtract-azh16the6-brians-projects-998b86c6.vercel.app'}`);
+  console.log(`📱 Direct mobile app integration - no backend proxy needed!`);
 }); 

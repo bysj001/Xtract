@@ -153,107 +153,163 @@ export class ProcessingService {
 }
 
 export class BackendService {
-  // Vercel deployment URL - xtract-backend coordinates with Railway audio-extraction
-  // Project: https://vercel.com
-  private static BACKEND_URL = 'https://xtract-azh16the6-brians-projects-998b86c6.vercel.app';
+  // Railway direct URL for video processing from Supabase
+  private static RAILWAY_URL = 'https://audio-extraction-production-8a74.up.railway.app';
 
-  static async processVideoUrl(url: string, userId: string): Promise<{ jobId: string; audioFileId?: string }> {
+  // NEW: Process video file directly via Supabase (NO VERCEL BACKEND!)
+  static async processVideoFile(videoFileUri: string, userId: string, fileName?: string): Promise<{ jobId: string; audioFileId?: string }> {
     try {
-      console.log('🔄 Step 1: Getting Instagram data (no video download)...');
+      console.log('🎬 Processing video file directly via Supabase - no API calls needed!');
+      console.log(`📁 Video URI: ${videoFileUri.substring(0, 50)}...`);
       
-      // Step 1: Get Instagram data only (no video downloading on backend)
-      const instagramResponse = await fetch(`${this.BACKEND_URL}/api/extract-audio`, {
+      // Step 1: Read the video file from the local URI
+      const videoResponse = await fetch(videoFileUri);
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to read video file: ${videoResponse.statusText}`);
+      }
+      
+      const videoBlob = await videoResponse.blob();
+      console.log(`📊 Video file size: ${videoBlob.size} bytes, type: ${videoBlob.type}`);
+      
+      // Step 2: Upload video to Supabase Storage
+      const timestamp = Date.now();
+      const videoFileName = fileName || `video_${timestamp}.mp4`;
+      const storagePath = `videos/${userId}/${timestamp}_${videoFileName}`;
+      
+      console.log(`☁️ Uploading video to Supabase Storage: ${storagePath}`);
+      
+      // Convert blob to ArrayBuffer for Supabase upload
+      const arrayBuffer = await videoBlob.arrayBuffer();
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('videos')
+        .upload(storagePath, arrayBuffer, {
+          contentType: videoBlob.type || 'video/mp4',
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        throw new Error(`Failed to upload video to Supabase: ${uploadError.message}`);
+      }
+
+      console.log('✅ Video uploaded to Supabase Storage');
+      
+      // Step 3: Create processing job in Supabase database
+      const { data: jobData, error: jobError } = await supabase
+        .from('processing_jobs')
+        .insert({
+          user_id: userId,
+          video_url: storagePath, // Store Supabase path instead of external URL
+          status: 'pending',
+          source_type: 'native_share' // Mark as native sharing
+        })
+        .select()
+        .single();
+
+      if (jobError) {
+        throw new Error(`Failed to create processing job: ${jobError.message}`);
+      }
+
+      console.log(`📋 Created processing job: ${jobData.id}`);
+      
+      // Step 4: Trigger Railway processing
+      console.log('🚂 Triggering Railway audio extraction...');
+      
+      const railwayResponse = await fetch(`${this.RAILWAY_URL}/api/extract/from-supabase`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          instagramUrl: url
+          jobId: jobData.id,
+          userId: userId,
+          videoPath: storagePath,
+          format: 'mp3',
+          quality: 'medium'
         }),
       });
 
-      if (!instagramResponse.ok) {
-        const errorData = await instagramResponse.json();
-        throw new Error(errorData.message || errorData.error || `Instagram API error: ${instagramResponse.status}`);
+      if (!railwayResponse.ok) {
+        const errorData = await railwayResponse.json();
+        throw new Error(errorData.message || errorData.error || `Railway processing error: ${railwayResponse.status}`);
       }
 
-      const instagramData = await instagramResponse.json();
+      const railwayData = await railwayResponse.json();
       
-      if (!instagramData.success) {
-        throw new Error(instagramData.message || instagramData.error || 'Failed to get Instagram data');
+      if (!railwayData.success) {
+        throw new Error(railwayData.message || railwayData.error || 'Railway processing failed');
       }
 
-      const { shortcode, videoUrl, metadata } = instagramData.data;
-      
-      console.log('✅ Step 1 complete: Got Instagram data');
-      console.log('🔄 Step 2: Downloading video via browser proxy...');
-
-      // Step 2: Download video via frontend (browser-like behavior)
-      const proxyUrl = new URL("/api/download-proxy", this.BACKEND_URL);
-      proxyUrl.searchParams.set("url", videoUrl);
-      proxyUrl.searchParams.set("filename", `${shortcode}.mp4`);
-      
-      const videoResponse = await fetch(proxyUrl.toString());
-      
-      if (!videoResponse.ok) {
-        throw new Error(`Failed to download video: ${videoResponse.statusText}`);
-      }
-
-      const videoBlob = await videoResponse.blob();
-      
-      console.log('✅ Step 2 complete: Downloaded video via proxy');
-      console.log(`📁 Video blob size: ${videoBlob.size} bytes, type: ${videoBlob.type}`);
-      console.log('🔄 Step 3: Uploading video for processing...');
-
-      // Step 3: Upload video + metadata for processing
-      const formData = new FormData();
-      
-      // React Native FormData - append blob with explicit filename  
-      formData.append('videoFile', videoBlob, `${shortcode}.mp4`);
-      
-      console.log(`📄 Appending video to FormData: ${shortcode}.mp4, size: ${videoBlob.size}, type: ${videoBlob.type}`);
-      formData.append('userId', userId);
-      formData.append('shortcode', shortcode);
-      formData.append('instagramUrl', url);
-      formData.append('metadata', JSON.stringify(metadata));
-      formData.append('format', 'mp3');
-      formData.append('quality', 'medium');
-      
-            console.log('📋 FormData prepared with:', {
-        videoFile: `${shortcode}.mp4 (${videoBlob.size} bytes)`,
-        userId,
-        shortcode,
-        instagramUrl: url,
-        hasMetadata: !!metadata
-      });
-
-      console.log('🌐 Making request to process-video...');
-      
-      const processResponse = await fetch(`${this.BACKEND_URL}/api/process-video`, {
-        method: 'POST',
-        body: formData,
-        // Don't set Content-Type header - let the browser/React Native set it automatically for FormData
-      });
-
-      if (!processResponse.ok) {
-        const errorData = await processResponse.json();
-        throw new Error(errorData.message || errorData.error || `Processing error: ${processResponse.status}`);
-      }
-
-      const processData = await processResponse.json();
-      
-      if (!processData.success) {
-        throw new Error(processData.message || processData.error || 'Processing failed');
-      }
-
-      console.log('✅ Step 3 complete: Video uploaded and processing started');
+      console.log('✅ Railway processing started successfully!');
       
       return {
-        jobId: processData.data.jobId,
-        audioFileId: processData.data.audioFileId
+        jobId: jobData.id,
+        audioFileId: railwayData.audioFileId
       };
     } catch (error) {
-      console.error('❌ BackendService error:', error);
+      console.error('❌ Direct video processing error:', error);
+      throw error;
+    }
+  }
+
+  // LEGACY: Process video URL (still needed for manual URL input - but no longer primary method)
+  static async processVideoUrl(url: string, userId: string): Promise<{ jobId: string; audioFileId?: string }> {
+    try {
+      console.log('🔗 Processing video URL via legacy method (may hit Instagram rate limits)');
+      
+      // For URLs, we still need to create a job and let Railway handle the download
+      const { data: jobData, error: jobError } = await supabase
+        .from('processing_jobs')
+        .insert({
+          user_id: userId,
+          video_url: url, // External URL
+          status: 'pending',
+          source_type: 'url_input' // Mark as URL input
+        })
+        .select()
+        .single();
+
+      if (jobError) {
+        throw new Error(`Failed to create processing job: ${jobError.message}`);
+      }
+
+      console.log(`📋 Created URL processing job: ${jobData.id}`);
+      
+      // Trigger Railway with URL processing (existing endpoint)
+      const railwayResponse = await fetch(`${this.RAILWAY_URL}/api/extract/from-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jobId: jobData.id,
+          videoUrl: url,
+          userId: userId,
+          format: 'mp3',
+          quality: 'medium'
+        }),
+      });
+
+      if (!railwayResponse.ok) {
+        const errorData = await railwayResponse.json();
+        throw new Error(errorData.message || errorData.error || `Railway processing error: ${railwayResponse.status}`);
+      }
+
+      const railwayData = await railwayResponse.json();
+      
+      if (!railwayData.success) {
+        throw new Error(railwayData.message || railwayData.error || 'Railway processing failed');
+      }
+
+      console.log('✅ URL processing started via Railway');
+      
+      return {
+        jobId: jobData.id,
+        audioFileId: railwayData.audioFileId
+      };
+    } catch (error) {
+      console.error('❌ URL processing error:', error);
       throw error;
     }
   }

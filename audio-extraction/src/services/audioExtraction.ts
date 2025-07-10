@@ -8,9 +8,19 @@ import { SupabaseService } from './supabase';
 import { AudioFile, ProcessingJob } from '../types/database';
 
 export interface ExtractionRequest {
-  videoUrl: string;
-  shortcode: string;
+  jobId?: string; // Made optional for backward compatibility
+  videoUrl?: string; // Made optional since Supabase requests use videoPath
+  videoPath?: string; // New field for Supabase storage path
   userId: string;
+  format: 'mp3' | 'wav' | 'aac' | 'ogg';
+  quality: 'low' | 'medium' | 'high';
+  videoTitle?: string;
+}
+
+export interface SupabaseExtractionRequest {
+  jobId: string;
+  userId: string;
+  videoPath: string; // Supabase storage path
   format: 'mp3' | 'wav' | 'aac' | 'ogg';
   quality: 'low' | 'medium' | 'high';
   videoTitle?: string;
@@ -137,12 +147,172 @@ export class AudioExtractionService {
     return `Audio from ${shortcode}`;
   }
 
-  async extractAudioFromUrl(request: ExtractionRequest): Promise<ExtractionResult> {
-    const jobId = uuidv4();
-    const { videoUrl, shortcode, userId, format, quality, videoTitle } = request;
+  // NEW: Extract audio from video in Supabase storage (native sharing flow)
+  async extractAudioFromSupabase(request: SupabaseExtractionRequest): Promise<ExtractionResult> {
+    const { jobId, userId, videoPath, format, quality, videoTitle } = request;
 
     let processingJob: ProcessingJob | null = null;
     let audioFileRecord: AudioFile | null = null;
+
+    // Update job status to processing
+    this.jobs.set(jobId, {
+      jobId,
+      status: 'processing',
+      progress: 10,
+    });
+
+    try {
+      // Get existing processing job from Supabase
+      processingJob = await this.supabaseService.getProcessingJob(jobId);
+      if (!processingJob) {
+        throw new Error(`Processing job ${jobId} not found`);
+      }
+
+      // Update processing job status
+      await this.supabaseService.updateProcessingJob(processingJob.id, {
+        status: 'processing',
+      });
+
+      // Download video from Supabase Storage
+      console.log(`📥 Downloading video from Supabase: ${videoPath}`);
+      const videoData = await this.supabaseService.downloadVideoFile(videoPath);
+
+      // Create temporary video file
+      const shortcode = `supabase_${Date.now()}`;
+      const videoFileName = `${shortcode}.mp4`;
+      const videoPath_temp = path.join(this.tempDir, videoFileName);
+      
+      const videoBuffer = await videoData.arrayBuffer();
+      await fs.writeFile(videoPath_temp, Buffer.from(videoBuffer));
+
+      // Update progress
+      this.jobs.set(jobId, {
+        jobId,
+        status: 'processing',
+        progress: 30,
+      });
+
+      // Extract audio using ffmpeg
+      const audioFileName = `${shortcode}_${Date.now()}.${format}`;
+      const audioPath = path.join(this.tempDir, audioFileName);
+      
+      const qualitySettings = this.getQualitySettings(quality);
+
+      await this.extractAudio(videoPath_temp, audioPath, format, qualitySettings);
+
+      // Update progress
+      this.jobs.set(jobId, {
+        jobId,
+        status: 'processing',
+        progress: 60,
+      });
+
+      // Get audio file stats and duration
+      const audioStats = await fs.stat(audioPath);
+      const duration = await this.getAudioDuration(audioPath);
+
+      // Upload audio file to Supabase Storage
+      const audioBuffer = await fs.readFile(audioPath);
+      const storageFilePath = `${userId}/${shortcode}_${Date.now()}.${format}`;
+      const supabaseUrl = await this.supabaseService.uploadAudioFile(
+        storageFilePath,
+        audioBuffer,
+        this.getMimeType(format)
+      );
+
+      // Update progress
+      this.jobs.set(jobId, {
+        jobId,
+        status: 'processing',
+        progress: 80,
+      });
+
+      // Create audio file record in Supabase
+      const title = this.generateTitle(shortcode, videoTitle);
+      audioFileRecord = await this.supabaseService.createAudioFile({
+        user_id: userId,
+        title,
+        filename: audioFileName,
+        source_url: `supabase://${videoPath}`,
+        file_url: supabaseUrl,
+        duration: Math.round(duration),
+        file_size: audioStats.size,
+      });
+
+      // Update processing job with completion
+      await this.supabaseService.updateProcessingJob(processingJob.id, {
+        status: 'completed',
+        audio_file_id: audioFileRecord.id,
+      });
+
+      // Clean up temporary files
+      await fs.unlink(videoPath_temp);
+      await fs.unlink(audioPath);
+
+      // Create result
+      const result: ExtractionResult = {
+        jobId,
+        audioFileId: audioFileRecord.id,
+        audioUrl: `/api/extract/download/${jobId}`,
+        format,
+        size: audioStats.size,
+        duration: Math.round(duration),
+        createdAt: audioFileRecord.created_at,
+        supabaseUrl,
+      };
+
+      // Update job status to completed
+      this.jobs.set(jobId, {
+        jobId,
+        status: 'completed',
+        progress: 100,
+        result,
+        audioFileId: audioFileRecord.id,
+      });
+
+      console.log(`✅ Supabase video processing completed for job ${jobId}`);
+      return result;
+
+    } catch (error: any) {
+      console.error(`❌ Supabase video processing failed for job ${jobId}:`, error);
+      
+      // Update processing job status to failed
+      if (processingJob) {
+        try {
+          await this.supabaseService.updateProcessingJob(processingJob.id, {
+            status: 'failed',
+            error_message: error.message,
+          });
+        } catch (updateError) {
+          console.error('Failed to update processing job status:', updateError);
+        }
+      }
+
+      // Update local job status to failed
+      this.jobs.set(jobId, {
+        jobId,
+        status: 'failed',
+        error: error.message,
+      });
+
+      throw error;
+    }
+  }
+
+  // LEGACY: Extract audio from external video URL (for manual URL input)
+  async extractAudioFromUrl(request: ExtractionRequest): Promise<ExtractionResult> {
+    const internalJobId = uuidv4();
+    const { jobId = internalJobId, videoUrl, userId, format, quality, videoTitle } = request;
+    
+    if (!videoUrl) {
+      throw new Error('videoUrl is required for URL extraction');
+    }
+
+    let processingJob: ProcessingJob | null = null;
+    let audioFileRecord: AudioFile | null = null;
+
+    // Generate shortcode for file naming
+    const shortcode = `url_${jobId.substring(0, 8)}`;
 
     // Initialize job status
     this.jobs.set(jobId, {
@@ -152,12 +322,21 @@ export class AudioExtractionService {
     });
 
     try {
-      // Create processing job in Supabase
-      processingJob = await this.supabaseService.createProcessingJob({
-        user_id: userId,
-        video_url: videoUrl,
-        status: 'pending',
-      });
+      // Get or create processing job in Supabase
+      if (jobId !== internalJobId) {
+        // Use existing job from mobile app
+        processingJob = await this.supabaseService.getProcessingJob(jobId);
+        if (!processingJob) {
+          throw new Error(`Processing job ${jobId} not found`);
+        }
+      } else {
+        // Create new job for legacy requests
+        processingJob = await this.supabaseService.createProcessingJob({
+          user_id: userId,
+          video_url: videoUrl,
+          status: 'pending',
+        });
+      }
 
       // Update local job with processing job ID
       this.jobs.set(jobId, {

@@ -18,6 +18,7 @@ import { globalStyles } from '../styles/globalStyles';
 import { AudioService, BackendService } from '../services/supabase';
 import { UrlSchemeService } from '../services/urlScheme';
 import { SharedUrlManager } from '../services/sharedUrlManager';
+import { ShareMenuService } from '../services/shareMenu';
 import { isValidVideoUrl } from '../utils/videoUtils';
 import { AudioFile } from '../types';
 
@@ -66,9 +67,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
 
   const checkForPendingSharedUrl = async () => {
     try {
+      // Check for both video files and URLs
+      const sharedContent = await ShareMenuService.processSharedContent();
+      if (sharedContent) {
+        handleSharedContent(sharedContent);
+        return;
+      }
+      
+      // Fallback to legacy URL handling
       const pendingUrl = await SharedUrlManager.getPendingSharedUrl();
       if (pendingUrl) {
-        // Validate that it's a video URL
         if (isValidVideoUrl(pendingUrl)) {
           handleSharedUrl(pendingUrl);
         } else {
@@ -76,7 +84,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
         }
       }
     } catch (error) {
-      // Silently handle error - no need to show debug info to user
+      console.error('Error checking for shared content:', error);
     }
   };
 
@@ -90,12 +98,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     return UrlSchemeService.initialize();
   };
 
+  const handleSharedContent = async (sharedContent: { type: 'videoFile' | 'url', data: any }) => {
+    console.log(`Processing shared content: ${sharedContent.type}`);
+    
+    if (sharedContent.type === 'videoFile') {
+      // NEW: Direct video file processing - no Instagram API calls!
+      await processVideoFile(sharedContent.data);
+    } else if (sharedContent.type === 'url') {
+      // EXISTING: URL processing - may hit rate limits
+      await processVideoUrl(sharedContent.data);
+    }
+  };
+
   const handleSharedUrl = async (url: string) => {
     console.log('Processing shared URL:', url);
     
     // Validate that it's a video URL
     if (isValidVideoUrl(url)) {
-      await processVideo(url);
+      await processVideoUrl(url);
     } else {
       Alert.alert('Invalid URL', 'Please share a valid video URL from a supported video platform.');
     }
@@ -106,18 +126,41 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     
     // Validate that it's a video URL
     if (isValidVideoUrl(pendingUrl)) {
-      await processVideo(pendingUrl);
+      await processVideoUrl(pendingUrl);
     } else {
       Alert.alert('Invalid URL', 'Please share a valid video URL from a supported video platform.');
     }
   };
 
-  const processVideo = async (url: string) => {
+  const processVideoFile = async (videoFileData: { uri: string; type: string; name?: string }) => {
     try {
-      // Call the Railway backend to process the video
+      console.log('🎬 Processing video file directly - bypassing Instagram API!');
+      
+      // Call the new direct video processing method
+      const result = await BackendService.processVideoFile(videoFileData.uri, user.id, videoFileData.name);
+      
+      // Show success message
+      Alert.alert('✅ Success!', 'Video file processed successfully! No rate limiting issues 🎉', [
+        { text: 'OK', onPress: () => loadData() }
+      ]);
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      
+      Alert.alert('❌ Error', `Failed to process video file:\n${errorMessage}`, [
+        { text: 'OK' }
+      ]);
+    }
+  };
+
+  const processVideoUrl = async (url: string) => {
+    try {
+      console.log('🔗 Processing video URL - using Instagram API (may hit rate limits)');
+      
+      // Call the existing URL processing method
       const result = await BackendService.processVideoUrl(url, user.id);
       
-      // Dismiss any existing alerts and show success
+      // Show success message
       Alert.alert('✅ Success!', 'Audio extracted successfully! Check your library below.', [
         { text: 'OK', onPress: () => loadData() }
       ]);
@@ -125,7 +168,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
-      // Dismiss any existing alerts and show error
       Alert.alert('❌ Error', `Failed to extract audio:\n${errorMessage}`, [
         { text: 'OK' }
       ]);
