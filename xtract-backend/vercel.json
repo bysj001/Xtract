@@ -8,6 +8,12 @@
     },
     "src/app/api/extract-audio/route.ts": {
       "maxDuration": 30
+    },
+    "src/app/api/process-video/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/download-proxy/route.ts": {
+      "maxDuration": 30
     }
   },
   "regions": ["iad1"],

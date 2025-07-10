@@ -155,7 +155,7 @@ export class ProcessingService {
 export class BackendService {
   // Vercel deployment URL - xtract-backend coordinates with Railway audio-extraction
   // Project: https://vercel.com
-  private static BACKEND_URL = 'https://xtract-bkz9mt0lc-brians-projects-998b86c6.vercel.app';
+  private static BACKEND_URL = 'https://xtract-azh16the6-brians-projects-998b86c6.vercel.app';
 
   static async processVideoUrl(url: string, userId: string): Promise<{ jobId: string; audioFileId?: string }> {
     try {
@@ -202,21 +202,37 @@ export class BackendService {
       const videoBlob = await videoResponse.blob();
       
       console.log('✅ Step 2 complete: Downloaded video via proxy');
+      console.log(`📁 Video blob size: ${videoBlob.size} bytes, type: ${videoBlob.type}`);
       console.log('🔄 Step 3: Uploading video for processing...');
 
       // Step 3: Upload video + metadata for processing
       const formData = new FormData();
-      formData.append('videoFile', videoBlob);
+      
+      // React Native FormData - append blob with explicit filename  
+      formData.append('videoFile', videoBlob, `${shortcode}.mp4`);
+      
+      console.log(`📄 Appending video to FormData: ${shortcode}.mp4, size: ${videoBlob.size}, type: ${videoBlob.type}`);
       formData.append('userId', userId);
       formData.append('shortcode', shortcode);
       formData.append('instagramUrl', url);
       formData.append('metadata', JSON.stringify(metadata));
       formData.append('format', 'mp3');
       formData.append('quality', 'medium');
+      
+            console.log('📋 FormData prepared with:', {
+        videoFile: `${shortcode}.mp4 (${videoBlob.size} bytes)`,
+        userId,
+        shortcode,
+        instagramUrl: url,
+        hasMetadata: !!metadata
+      });
 
+      console.log('🌐 Making request to process-video...');
+      
       const processResponse = await fetch(`${this.BACKEND_URL}/api/process-video`, {
         method: 'POST',
         body: formData,
+        // Don't set Content-Type header - let the browser/React Native set it automatically for FormData
       });
 
       if (!processResponse.ok) {
