@@ -234,7 +234,7 @@ export class AudioExtractionService {
         filename: audioFileName,
         source_url: videoUrl,
         file_url: supabaseUrl,
-        duration,
+        duration: Math.round(duration), // Convert decimal to integer
         file_size: audioStats.size,
       });
 
@@ -255,7 +255,7 @@ export class AudioExtractionService {
         audioUrl: `/api/extract/download/${jobId}`,
         format,
         size: audioStats.size,
-        duration,
+        duration: Math.round(duration), // Convert decimal to integer for consistency
         createdAt: audioFileRecord.created_at,
         supabaseUrl,
       };
