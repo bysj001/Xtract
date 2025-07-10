@@ -17,8 +17,8 @@ export function validateEnvironment(): EnvironmentConfig {
   const requiredVars = {
     NODE_ENV: process.env.NODE_ENV || 'development',
     PORT: parseInt(process.env.PORT || '8080'),
-    XTRACT_BACKEND_URL: process.env.XTRACT_BACKEND_URL || 'https://xtract-2ucjql3jc-brians-projects-998b86c6.vercel.app',
-    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS?.split(',') || ['https://xtract-2ucjql3jc-brians-projects-998b86c6.vercel.app'],
+    XTRACT_BACKEND_URL: process.env.XTRACT_BACKEND_URL || 'https://xtract-5cdaz5v4c-brians-projects-998b86c6.vercel.app',
+    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS?.split(',') || ['https://xtract-5cdaz5v4c-brians-projects-998b86c6.vercel.app'],
     TEMP_DIR: process.env.TEMP_DIR || './temp',
     MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE || '100'), // MB
     CLEANUP_INTERVAL_HOURS: parseInt(process.env.CLEANUP_INTERVAL_HOURS || '1'),
