@@ -155,7 +155,7 @@ export class ProcessingService {
 export class BackendService {
   // Vercel deployment URL - xtract-backend coordinates with Railway audio-extraction
   // Project: https://vercel.com
-  private static BACKEND_URL = 'https://xtract-5cdaz5v4c-brians-projects-998b86c6.vercel.app';
+  private static BACKEND_URL = 'https://xtract-mpb1b1iq2-brians-projects-998b86c6.vercel.app';
 
   static async processVideoUrl(url: string, userId: string): Promise<{ jobId: string; audioFileId?: string }> {
     try {

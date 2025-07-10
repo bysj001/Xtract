@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Xtract Backend API",
-  description: "Backend API for video content extraction",
+  title: "Xtract Backend - Instagram Video Processing Service",
+  description: "Backend service for processing Instagram videos and extracting audio using Supabase Storage",
 };
 
 export default function RootLayout({
@@ -11,8 +12,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className="antialiased">
+        {children}
+      </body>
     </html>
   );
 }

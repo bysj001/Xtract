@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { IG_GraphQLResponseDto } from "@/features/api/_dto/instagram";
-
-import { getInstagramPostGraphQL } from "./utils";
+import { IG_GraphQLResponseDto, getInstagramPostGraphQL } from "./utils";
 
 interface RouteContext {
   params: Promise<{

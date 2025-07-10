@@ -1,229 +1,209 @@
 # Xtract Backend
 
-Backend API service for the Xtract platform - handles Instagram video URL parsing and temporary video storage. Designed to work with the separate audio extraction service.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Features
+Instagram video processing backend service that fetches videos and uploads them to Supabase Storage for audio extraction processing.
 
-- Instagram URL validation and shortcode extraction
-- Instagram GraphQL API integration for video metadata
-- Temporary video file storage
-- API endpoints for video download proxy
-- Coordinated audio extraction workflow
-- Optimized for Vercel deployment
+## 🏗️ Architecture
 
-## API Endpoints
+This service acts as the **Vercel Backend** in a distributed system:
 
-### Instagram Video Processing
-- `GET /api/instagram/p/[shortcode]` - Get Instagram post metadata
-- `GET /api/download-proxy` - Download and temporarily store video
-- `GET /api/temp-file/[filename]` - Serve temporarily stored files
+1. **Vercel Backend (This Service)**: 
+   - Fetches Instagram video URLs via GraphQL
+   - Downloads videos and uploads to Supabase Storage
+   - Notifies Railway backend for audio extraction
 
-### Audio Extraction Coordination
-- `POST /api/extract-audio` - Complete workflow: Instagram URL → Audio file
+2. **Railway Backend**: 
+   - Downloads videos from Supabase Storage
+   - Extracts audio using FFmpeg
+   - Uploads final MP3 to Supabase audio bucket
+   - Cleans up temporary video files
 
-## Installation
+## ✨ Features
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   # or
-   yarn install
-   ```
+- **Instagram Integration**: Fetches video data using Instagram's GraphQL API
+- **Supabase Storage**: Temporary video file storage and transfer
+- **Railway Integration**: Webhook notifications for audio extraction
+- **Automatic Cleanup**: 24-hour temporary file lifecycle
+- **Error Handling**: Comprehensive error responses and logging
+- **Vercel Optimized**: Configured for serverless deployment
 
-3. Configure environment variables (see Environment Variables section)
+## 📚 API Endpoints
 
-4. Run development server:
-   ```bash
-   npm run dev
-   # or
-   yarn dev
-   ```
+### `POST /api/process-instagram`
+Complete Instagram video processing pipeline.
 
-## Environment Variables
-
-Create a `.env.local` file in the root directory:
-
-```env
-# Base URL for this service (used for internal API calls)
-NEXT_PUBLIC_BASE_URL=http://localhost:3000
-
-# Audio extraction service URL (Railway deployment)
-AUDIO_EXTRACTION_SERVICE_URL=https://xtract-production.up.railway.app
+**Request:**
+```json
+{
+  "url": "https://www.instagram.com/p/ABC123/"
+}
 ```
 
-For production (Vercel), set these in your Vercel project settings:
-```env
-NEXT_PUBLIC_BASE_URL=https://xtract-otimib3km-brians-projects-998b86c6.vercel.app
-AUDIO_EXTRACTION_SERVICE_URL=https://xtract-production.up.railway.app
-```
-
-## Deployment to Vercel
-
-1. Connect your GitHub repository to Vercel
-2. Set the environment variables in Vercel dashboard
-3. Deploy - Vercel will automatically detect this as a Next.js project
-
-### Vercel Configuration
-
-The project includes:
-- `next.config.ts` - Next.js configuration
-- `package.json` - Dependencies and scripts optimized for API-only usage
-- API routes under `src/app/api/`
-
-## Architecture
-
-This backend works as part of a two-service architecture:
-
-```
-User Request → Xtract Backend (Vercel) → Audio Extraction Service (Railway)
-                     ↓
-            Temporary video storage
-                     ↓
-               Video URL provided to
-              Audio Extraction Service
-```
-
-### Service Communication Flow
-
-1. **Instagram URL Processing**: User provides Instagram URL
-2. **Metadata Retrieval**: Backend fetches video metadata from Instagram
-3. **Temporary Storage**: Video is downloaded and stored temporarily
-4. **Audio Extraction**: Video URL is sent to audio extraction service
-5. **Audio Processing**: Audio extraction service processes and returns audio file
-6. **Cleanup**: Temporary files are cleaned up automatically
-
-## Usage Examples
-
-### Complete Audio Extraction Workflow
-   ```bash
-curl -X POST https://xtract-otimib3km-brians-projects-998b86c6.vercel.app/api/extract-audio \
-  -H "Content-Type: application/json" \
-  -d '{
-    "instagramUrl": "https://www.instagram.com/p/ABC123DEF456/",
-    "userId": "user-123",
-    "format": "mp3",
-    "quality": "medium"
-  }'
-```
-
-Response:
+**Response:**
 ```json
 {
   "success": true,
   "data": {
-    "jobId": "550e8400-e29b-41d4-a716-446655440000",
-    "audioUrl": "https://xtract-production.up.railway.app/api/extract/download/550e8400-e29b-41d4-a716-446655440000",
-    "statusUrl": "https://xtract-production.up.railway.app/api/extract/status/550e8400-e29b-41d4-a716-446655440000",
-    "format": "mp3",
-    "size": 1234567,
-    "duration": 180.5,
-    "postInfo": {
-      "shortcode": "ABC123DEF456",
-      "title": "Video Title",
-      "owner": "username"
+    "shortcode": "ABC123",
+    "filename": "ABC123_1234567890.mp4",
+    "videoUrl": "https://supabase-storage-url/...",
+    "extractionStatus": "started",
+    "metadata": {
+      "title": "Video caption...",
+      "username": "user123",
+      "duration": 30,
+      "thumbnail": "https://..."
     }
-  }
+  },
+  "message": "Video processed and audio extraction initiated"
 }
 ```
 
-### Individual Endpoints
+### `POST /api/upload-video`
+Direct video upload to Supabase Storage.
 
-#### Get Instagram Post Metadata
-   ```bash
-curl https://xtract-otimib3km-brians-projects-998b86c6.vercel.app/api/instagram/p/ABC123DEF456
-   ```
-
-#### Download Video Temporarily
-   ```bash
-curl "https://xtract-otimib3km-brians-projects-998b86c6.vercel.app/api/download-proxy?url=VIDEO_URL&shortcode=ABC123DEF456"
-```
-
-## File Management
-
-- Temporary video files are stored in `/temp` directory
-- Files are automatically cleaned up after processing
-- Temporary file serving includes security measures:
-  - Filename sanitization
-  - Path traversal prevention
-  - Limited file retention
-
-## Error Handling
-
-The API includes comprehensive error handling:
-
-- **400 Bad Request**: Invalid URLs, missing parameters
-- **404 Not Found**: Post not found, expired files
-- **429 Too Many Requests**: Instagram rate limiting
-- **500 Internal Server Error**: Processing failures
-
-Example error response:
+**Request:**
 ```json
 {
-  "error": "invalidUrl",
-  "message": "Invalid Instagram URL"
+  "videoUrl": "https://video-url.com/video.mp4",
+  "shortcode": "ABC123"
 }
 ```
 
-## Dependencies
+### `GET /api/instagram/p/[shortcode]`
+Fetch Instagram post metadata only.
 
-### Core
-- **Next.js 15** - Web framework and API routes
-- **React 19** - Required by Next.js
-- **Zod** - Schema validation
-- **TypeScript** - Type safety
+## 🛠️ Tech Stack
 
-### Removed Dependencies
-The following UI-related dependencies were removed for backend-only operation:
-- Tailwind CSS and related packages
-- React Query and devtools
-- UI component libraries (Radix UI)
-- Internationalization packages
-- Theme and styling packages
+- **Framework**: [Next.js](https://nextjs.org/) (v15+)
+- **Storage**: [Supabase Storage](https://supabase.com/storage)
+- **Deployment**: [Vercel](https://vercel.com/)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Validation**: [Zod](https://zod.dev/)
 
-## API Rate Limiting
+## 🚀 Getting Started
 
-Instagram API calls may be rate-limited. The service handles:
-- 429 responses from Instagram
-- Automatic error propagation
-- Proper error messages for rate limiting
+### Prerequisites
 
-## Security Considerations
+1. **Supabase Project**: Create a project at [supabase.com](https://supabase.com)
+2. **Storage Buckets**: Create buckets named `video-temp` and `audio-final`
+3. **Railway Backend**: Optional, for audio extraction
 
-- Filename sanitization for temporary files
-- Path traversal prevention
-- CORS handling for cross-origin requests
-- Input validation for all endpoints
-- Temporary file cleanup
+### Environment Variables
 
-## Development
+Create a `.env.local` file:
 
-### Project Structure
-```
-src/
-├── app/
-│   ├── api/
-│   │   ├── download-proxy/     # Video download and storage
-│   │   ├── extract-audio/      # Audio extraction coordination
-│   │   ├── instagram/          # Instagram API integration
-│   │   └── temp-file/          # Temporary file serving
-│   └── layout.tsx              # Minimal layout
-├── features/
-│   └── api/                    # API utilities and transformations
-├── lib/                        # Utility functions
-└── types/                      # TypeScript definitions
+```env
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+# Railway Backend Configuration (Optional)
+RAILWAY_BACKEND_URL=your_railway_backend_url
+RAILWAY_WEBHOOK_SECRET=your_webhook_secret
+
+# Storage Configuration
+SUPABASE_STORAGE_BUCKET=video-temp
 ```
 
-### Adding New Features
+### Local Development
 
-1. Create new API routes in `src/app/api/`
-2. Add utility functions to `src/lib/`
-3. Update TypeScript types in `src/types/`
-4. Test with both local and deployed audio extraction service
+1. **Clone and install:**
+   ```bash
+   git clone <repository-url>
+   cd xtract-backend
+   npm install
+   ```
 
-## Technologies Used
+2. **Set up environment variables:**
+   ```bash
+   cp .env.example .env.local
+   # Edit .env.local with your values
+   ```
 
-- **Next.js** - Full-stack React framework
-- **TypeScript** - Type safety and better DX
-- **Vercel** - Deployment platform
-- **Node.js** - Runtime environment
+3. **Run development server:**
+   ```bash
+   npm run dev
+   ```
+
+4. **Open [http://localhost:3000](http://localhost:3000)**
+
+### Deployment to Vercel
+
+1. **Connect to Vercel:**
+   ```bash
+   npm i -g vercel
+   vercel login
+   vercel
+   ```
+
+2. **Set environment variables in Vercel dashboard**
+
+3. **Deploy:**
+   ```bash
+   vercel --prod
+   ```
+
+## 📝 Usage Examples
+
+### JavaScript/TypeScript
+```javascript
+const response = await fetch('https://your-vercel-app.vercel.app/api/process-instagram', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    url: 'https://www.instagram.com/p/ABC123/'
+  })
+});
+
+const result = await response.json();
+console.log(result.data.videoUrl); // Supabase Storage URL
+```
+
+### cURL
+```bash
+curl -X POST https://your-vercel-app.vercel.app/api/process-instagram \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://www.instagram.com/p/ABC123/"}'
+```
+
+## 🔧 Configuration
+
+### Supabase Storage Buckets
+
+Create the following buckets in your Supabase project:
+
+1. **video-temp** (Public)
+   - For temporary video storage
+   - 24-hour automatic cleanup
+   
+2. **audio-final** (Public/Private as needed)
+   - For final extracted audio files
+   - Managed by Railway backend
+
+### Vercel Function Configuration
+
+The `vercel.json` file configures:
+- 30-second timeout for video processing
+- IAD1 region for optimal performance
+- Custom build command
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📜 License
+
+This project is licensed under the MIT License - see the `LICENSE.md` file for details.
+
+## ⚠️ Disclaimer
+
+This tool is for educational purposes only. Downloading videos from Instagram may violate their Terms of Service. Please respect copyright laws and the platform's policies. Use responsibly and only for content you have the right to download.

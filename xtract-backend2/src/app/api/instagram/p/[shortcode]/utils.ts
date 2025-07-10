@@ -1,52 +1,26 @@
+import { RequestConfigType } from "@/types/request-config";
+import { IG_GraphQLResponseDto } from "@/features/api/_dto/instagram";
+
 import querystring from "querystring";
 
-// Local type definitions
-export type RequestConfigType = RequestInit;
+// Rotate between different realistic User-Agents
+const USER_AGENTS = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0"
+];
 
-export interface IG_GraphQLResponseDto {
-  data: {
-    xdt_shortcode_media: {
-      __typename: string;
-      id: string;
-      shortcode: string;
-      dimensions: {
-        height: number;
-        width: number;
-      };
-      display_url: string;
-      edge_media_to_caption: {
-        edges: Array<{
-          node: {
-            text: string;
-          };
-        }>;
-      };
-      fact_check_overall_rating: any;
-      fact_check_information: any;
-      gating_info: any;
-      sharing_friction_info: {
-        should_have_sharing_friction: boolean;
-        bloks_app_url: any;
-      };
-      media_overlay_info: any;
-      media_preview: string;
-      owner: {
-        id: string;
-        username: string;
-      };
-      is_video: boolean;
-      has_upcoming_event: boolean;
-      accessibility_caption: string;
-      video_url?: string;
-      video_duration?: number;
-    };
-  };
-  extensions: {
-    is_final: boolean;
-  };
+function getRandomUserAgent() {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
 function generateRequestBody(shortcode: string) {
+  // Add some randomization to make requests less predictable
+  const timestamp = Math.floor(Date.now() / 1000);
+  const randomId = Math.floor(Math.random() * 1000000);
+  
   return querystring.stringify({
     av: "0",
     __d: "www",
@@ -57,8 +31,8 @@ function generateRequestBody(shortcode: string) {
     dpr: "3",
     __ccg: "GOOD",
     __rev: "1021613311",
-    __s: "hm5eih:ztapmw:x0losd",
-    __hsi: "7489787314313612244",
+    __s: `hm5eih:ztapmw:x0lo${randomId}`, // Add some randomization
+    __hsi: `7489787314313612${randomId}`,
     __dyn:
       "7xeUjG1mxu1syUbFp41twpUnwgU7SbzEdF8aUco2qwJw5ux609vCwjE1EE2Cw8G11wBz81s8hwGxu786a3a1YwBgao6C0Mo2swtUd8-U2zxe2GewGw9a361qw8Xxm16wa-0oa2-azo7u3C2u2J0bS1LwTwKG1pg2fwxyo6O1FwlA3a3zhA6bwIxe6V8aUuwm8jwhU3cyVrDyo",
     __csr:
@@ -68,7 +42,7 @@ function generateRequestBody(shortcode: string) {
     jazoest: "2946",
     __spin_r: "1021613311",
     __spin_b: "trunk",
-    __spin_t: "1743852001",
+    __spin_t: timestamp.toString(), // Use current timestamp
     __crn: "comet.igweb.PolarisPostRoute",
     fb_api_caller_class: "RelayModern",
     fb_api_req_friendly_name: "PolarisPostActionLoadPostQueryQuery",
@@ -89,19 +63,26 @@ export type GetInstagramPostRequest = {
 
 export type GetInstagramPostResponse = IG_GraphQLResponseDto;
 
-export function getInstagramPostGraphQL(
+// Add delay function to slow down requests
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function getInstagramPostGraphQL(
   data: GetInstagramPostRequest,
   requestConfig?: RequestConfigType
 ) {
   const requestUrl = new URL("https://www.instagram.com/graphql/query");
+  
+  // Add a small random delay to avoid looking like a bot
+  await delay(Math.random() * 2000 + 1000); // 1-3 second delay
 
   return fetch(requestUrl, {
     credentials: "include",
     headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Linux; Android 11; SAMSUNG SM-G973U) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/14.2 Chrome/87.0.4280.141 Mobile Safari/537.36",
+      "User-Agent": getRandomUserAgent(), // Use random User-Agent
       Accept: "*/*",
-      "Accept-Language": "en-US,en;q=0.5",
+      "Accept-Language": "en-US,en;q=0.9",
       "Content-Type": "application/x-www-form-urlencoded",
       "X-FB-Friendly-Name": "PolarisPostActionLoadPostQueryQuery",
       "X-BLOKS-VERSION-ID":
@@ -110,7 +91,6 @@ export function getInstagramPostGraphQL(
       "X-IG-App-ID": "1217981644879628",
       "X-FB-LSD": "AVrqPT0gJDo",
       "X-ASBD-ID": "359341",
-      "Sec-GPC": "1",
       "Sec-Fetch-Dest": "empty",
       "Sec-Fetch-Mode": "cors",
       "Sec-Fetch-Site": "same-origin",
