@@ -56,21 +56,48 @@ export class AudioExtractionService {
   }
 
   private configureFfmpeg(): void {
-    // Configure FFmpeg paths for different environments
-    const ffmpegPath = process.env.FFMPEG_PATH || '/usr/bin/ffmpeg';
-    const ffprobePath = process.env.FFPROBE_PATH || '/usr/bin/ffprobe';
+    // Try multiple common FFmpeg paths and let fluent-ffmpeg auto-detect
+    const possiblePaths = [
+      '/usr/bin/ffmpeg',
+      '/usr/local/bin/ffmpeg', 
+      'ffmpeg'  // Let system PATH handle it
+    ];
     
-    try {
-      // Set FFmpeg binary paths
-      ffmpeg.setFfmpegPath(ffmpegPath);
-      ffmpeg.setFfprobePath(ffprobePath);
+    console.log('🔍 Configuring FFmpeg...');
+    
+    // If environment variables are empty, let fluent-ffmpeg auto-detect
+    if (!process.env.FFMPEG_PATH || process.env.FFMPEG_PATH === '') {
+      console.log('📡 Attempting FFmpeg auto-detection...');
       
-      console.log(`✅ FFmpeg configured:`);
-      console.log(`   FFmpeg path: ${ffmpegPath}`);
-      console.log(`   FFprobe path: ${ffprobePath}`);
-    } catch (error) {
-      console.warn('⚠️ Warning: Could not configure FFmpeg paths:', error);
-      // Continue without explicit paths - let fluent-ffmpeg try to auto-detect
+      // Test if FFmpeg is available without setting explicit paths
+      ffmpeg().getAvailableFormats((err, formats) => {
+        if (err) {
+          console.error('❌ FFmpeg auto-detection failed:', err.message);
+          console.log('🔧 Trying manual path detection...');
+        } else {
+          console.log('✅ FFmpeg auto-detection successful!');
+        }
+      });
+      
+    } else {
+      // Use explicit paths from environment
+      const ffmpegPath = process.env.FFMPEG_PATH;
+      const ffprobePath = process.env.FFPROBE_PATH;
+      
+      if (ffmpegPath && ffprobePath) {
+        try {
+          ffmpeg.setFfmpegPath(ffmpegPath);
+          ffmpeg.setFfprobePath(ffprobePath);
+          
+          console.log(`✅ FFmpeg configured with explicit paths:`);
+          console.log(`   FFmpeg: ${ffmpegPath}`);
+          console.log(`   FFprobe: ${ffprobePath}`);
+        } catch (error) {
+          console.warn('⚠️ Failed to set explicit FFmpeg paths:', error);
+        }
+      } else {
+        console.log('⚠️ FFMPEG_PATH or FFPROBE_PATH not set, falling back to auto-detection');
+      }
     }
   }
 

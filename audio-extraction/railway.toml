@@ -1,21 +1,17 @@
 [build]
 builder = "nixpacks"
 
+[build.env]
+# Force FFmpeg installation during build
+NIXPACKS_APT_PACKAGES = "ffmpeg"
+
 [deploy]
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
-[nixpacks]
-# Install ffmpeg system dependency
-aptPackages = ["ffmpeg", "ffmpeg-dev"]
-
-[build.env]
-# Ensure FFmpeg is available during build
-NIXPACKS_APT_PACKAGES = "ffmpeg ffmpeg-dev"
-
 [deploy.env]
-# Set FFmpeg path for runtime
-FFMPEG_PATH = "/usr/bin/ffmpeg"
-FFPROBE_PATH = "/usr/bin/ffprobe" 
+# Let fluent-ffmpeg auto-detect FFmpeg location
+FFMPEG_PATH = ""
+FFPROBE_PATH = "" 
