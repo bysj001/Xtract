@@ -52,6 +52,26 @@ export class AudioExtractionService {
     this.tempDir = config.TEMP_DIR;
     this.supabaseService = new SupabaseService();
     this.ensureTempDirectory();
+    this.configureFfmpeg();
+  }
+
+  private configureFfmpeg(): void {
+    // Configure FFmpeg paths for different environments
+    const ffmpegPath = process.env.FFMPEG_PATH || '/usr/bin/ffmpeg';
+    const ffprobePath = process.env.FFPROBE_PATH || '/usr/bin/ffprobe';
+    
+    try {
+      // Set FFmpeg binary paths
+      ffmpeg.setFfmpegPath(ffmpegPath);
+      ffmpeg.setFfprobePath(ffprobePath);
+      
+      console.log(`✅ FFmpeg configured:`);
+      console.log(`   FFmpeg path: ${ffmpegPath}`);
+      console.log(`   FFprobe path: ${ffprobePath}`);
+    } catch (error) {
+      console.warn('⚠️ Warning: Could not configure FFmpeg paths:', error);
+      // Continue without explicit paths - let fluent-ffmpeg try to auto-detect
+    }
   }
 
   private async ensureTempDirectory(): Promise<void> {
