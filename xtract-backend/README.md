@@ -165,11 +165,11 @@ console.log(result.data.videoUrl); // Supabase Storage URL
 ```
 
 ### cURL
-```bash
+   ```bash
 curl -X POST https://your-vercel-app.vercel.app/api/process-instagram \
   -H "Content-Type: application/json" \
   -d '{"url":"https://www.instagram.com/p/ABC123/"}'
-```
+   ```
 
 ## 🔧 Configuration
 

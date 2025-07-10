@@ -15,10 +15,10 @@ const PORT = process.env.PORT || 3001;
 validateEnvironment();
 
 // Middleware
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['https://xtract-giwl43qpu-brians-projects-998b86c6.vercel.app'],
-  credentials: true
-}));
+app.use(  cors({
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['https://xtract-bkz9mt0lc-brians-projects-998b86c6.vercel.app'],
+    credentials: true
+  }));
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -58,5 +58,5 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`🎵 Audio extraction service running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Backend URL: ${process.env.XTRACT_BACKEND_URL || 'https://xtract-giwl43qpu-brians-projects-998b86c6.vercel.app'}`);
+  console.log(`🔗 Backend URL: ${process.env.XTRACT_BACKEND_URL || 'https://xtract-bkz9mt0lc-brians-projects-998b86c6.vercel.app'}`);
 }); 

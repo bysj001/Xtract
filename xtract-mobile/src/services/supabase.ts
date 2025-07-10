@@ -155,39 +155,89 @@ export class ProcessingService {
 export class BackendService {
   // Vercel deployment URL - xtract-backend coordinates with Railway audio-extraction
   // Project: https://vercel.com
-  private static BACKEND_URL = 'https://xtract-mpb1b1iq2-brians-projects-998b86c6.vercel.app';
+  private static BACKEND_URL = 'https://xtract-bkz9mt0lc-brians-projects-998b86c6.vercel.app';
 
   static async processVideoUrl(url: string, userId: string): Promise<{ jobId: string; audioFileId?: string }> {
     try {
-      const response = await fetch(`${this.BACKEND_URL}/api/extract-audio`, {
+      console.log('🔄 Step 1: Getting Instagram data (no video download)...');
+      
+      // Step 1: Get Instagram data only (no video downloading on backend)
+      const instagramResponse = await fetch(`${this.BACKEND_URL}/api/extract-audio`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          instagramUrl: url,
-          userId: userId,
-          format: 'mp3',
-          quality: 'medium',
+          instagramUrl: url
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
+      if (!instagramResponse.ok) {
+        const errorData = await instagramResponse.json();
+        throw new Error(errorData.message || errorData.error || `Instagram API error: ${instagramResponse.status}`);
       }
 
-      const data = await response.json();
+      const instagramData = await instagramResponse.json();
       
-      if (!data.success) {
-        throw new Error(data.message || data.error || 'Processing failed');
+      if (!instagramData.success) {
+        throw new Error(instagramData.message || instagramData.error || 'Failed to get Instagram data');
       }
+
+      const { shortcode, videoUrl, metadata } = instagramData.data;
+      
+      console.log('✅ Step 1 complete: Got Instagram data');
+      console.log('🔄 Step 2: Downloading video via browser proxy...');
+
+      // Step 2: Download video via frontend (browser-like behavior)
+      const proxyUrl = new URL("/api/download-proxy", this.BACKEND_URL);
+      proxyUrl.searchParams.set("url", videoUrl);
+      proxyUrl.searchParams.set("filename", `${shortcode}.mp4`);
+      
+      const videoResponse = await fetch(proxyUrl.toString());
+      
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to download video: ${videoResponse.statusText}`);
+      }
+
+      const videoBlob = await videoResponse.blob();
+      
+      console.log('✅ Step 2 complete: Downloaded video via proxy');
+      console.log('🔄 Step 3: Uploading video for processing...');
+
+      // Step 3: Upload video + metadata for processing
+      const formData = new FormData();
+      formData.append('videoFile', videoBlob);
+      formData.append('userId', userId);
+      formData.append('shortcode', shortcode);
+      formData.append('instagramUrl', url);
+      formData.append('metadata', JSON.stringify(metadata));
+      formData.append('format', 'mp3');
+      formData.append('quality', 'medium');
+
+      const processResponse = await fetch(`${this.BACKEND_URL}/api/process-video`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!processResponse.ok) {
+        const errorData = await processResponse.json();
+        throw new Error(errorData.message || errorData.error || `Processing error: ${processResponse.status}`);
+      }
+
+      const processData = await processResponse.json();
+      
+      if (!processData.success) {
+        throw new Error(processData.message || processData.error || 'Processing failed');
+      }
+
+      console.log('✅ Step 3 complete: Video uploaded and processing started');
       
       return {
-        jobId: data.data.jobId,
-        audioFileId: data.data.audioFileId
+        jobId: processData.data.jobId,
+        audioFileId: processData.data.audioFileId
       };
     } catch (error) {
+      console.error('❌ BackendService error:', error);
       throw error;
     }
   }
