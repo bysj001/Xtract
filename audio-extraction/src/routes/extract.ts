@@ -1,26 +1,42 @@
 import express from 'express';
 import { AudioExtractionService } from '../services/audioExtraction';
-import { validateExtractionRequest, validateSupabaseExtractionRequest } from '../middleware/validation';
+import { SupabaseService } from '../services/supabase';
+import {
+  validateExtractionRequest,
+  validateJobStatusRequest,
+  validateUserRequest,
+} from '../middleware/validation';
 
 const router = express.Router();
 const audioService = new AudioExtractionService();
+const supabaseService = new SupabaseService();
 
-// NEW: POST /api/extract/from-supabase
-// Process video directly from Supabase storage (native sharing flow)
-router.post('/from-supabase', validateSupabaseExtractionRequest, async (req, res) => {
+/**
+ * POST /api/extract
+ * 
+ * Main extraction endpoint - processes video from Supabase storage
+ * Called by mobile app after uploading video to Supabase
+ * 
+ * Request body:
+ * - jobId: UUID of the processing job (created by mobile app)
+ * - userId: UUID of the authenticated user
+ * - videoStoragePath: Path to video in Supabase storage
+ * - originalFilename: Optional original filename for title
+ */
+router.post('/', validateExtractionRequest, async (req, res) => {
   try {
-    const { jobId, userId, videoPath, format = 'mp3', quality = 'medium', videoTitle } = req.body;
+    const { jobId, userId, videoStoragePath, originalFilename } = req.body;
 
-    console.log(`🎬 Starting Supabase video processing for job: ${jobId}, user: ${userId}`);
-    console.log(`📁 Video path: ${videoPath}`);
+    console.log(`🎬 Received extraction request`);
+    console.log(`   Job: ${jobId}`);
+    console.log(`   User: ${userId}`);
+    console.log(`   Video: ${videoStoragePath}`);
 
-    const result = await audioService.extractAudioFromSupabase({
+    const result = await audioService.extractAudio({
       jobId,
       userId,
-      videoPath,
-      format,
-      quality,
-      videoTitle,
+      videoStoragePath,
+      originalFilename,
     });
 
     return res.json({
@@ -28,8 +44,8 @@ router.post('/from-supabase', validateSupabaseExtractionRequest, async (req, res
       data: result,
     });
   } catch (error: any) {
-    console.error('Supabase audio extraction error:', error);
-    
+    console.error('Extraction error:', error);
+
     return res.status(500).json({
       success: false,
       error: 'extraction_failed',
@@ -38,41 +54,12 @@ router.post('/from-supabase', validateSupabaseExtractionRequest, async (req, res
   }
 });
 
-// UPDATED: POST /api/extract/from-url
-// Extract audio from a video URL (legacy method for manual URL input)
-router.post('/from-url', validateExtractionRequest, async (req, res) => {
-  try {
-    const { jobId, videoUrl, userId, format = 'mp3', quality = 'medium', videoTitle } = req.body;
-
-    console.log(`🔗 Starting URL video processing for job: ${jobId || 'legacy'}, user: ${userId}`);
-
-    const result = await audioService.extractAudioFromUrl({
-      jobId,
-      videoUrl,
-      userId,
-      format,
-      quality,
-      videoTitle,
-    });
-
-    return res.json({
-      success: true,
-      data: result,
-    });
-  } catch (error: any) {
-    console.error('URL audio extraction error:', error);
-    
-    return res.status(500).json({
-      success: false,
-      error: 'extraction_failed',
-      message: error.message,
-    });
-  }
-});
-
-// GET /api/extract/status/:jobId
-// Check the status of an extraction job
-router.get('/status/:jobId', async (req, res) => {
+/**
+ * GET /api/extract/status/:jobId
+ * 
+ * Check the status of an extraction job
+ */
+router.get('/status/:jobId', validateJobStatusRequest, async (req, res) => {
   try {
     const { jobId } = req.params;
     const status = await audioService.getJobStatus(jobId);
@@ -81,17 +68,24 @@ router.get('/status/:jobId', async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'job_not_found',
-        message: 'Job not found or expired',
+        message: 'Processing job not found',
       });
     }
 
     return res.json({
       success: true,
-      data: status,
+      data: {
+        jobId: status.id,
+        status: status.status,
+        audioFileId: status.audio_file_id,
+        errorMessage: status.error_message,
+        createdAt: status.created_at,
+        updatedAt: status.updated_at,
+      },
     });
   } catch (error: any) {
     console.error('Status check error:', error);
-    
+
     return res.status(500).json({
       success: false,
       error: 'status_check_failed',
@@ -100,26 +94,34 @@ router.get('/status/:jobId', async (req, res) => {
   }
 });
 
-// GET /api/extract/download/:jobId
-// Redirect to Supabase URL for audio file download
-router.get('/download/:jobId', async (req, res) => {
+/**
+ * GET /api/extract/download/:audioFileId
+ * 
+ * Get signed download URL for an audio file
+ */
+router.get('/download/:audioFileId', async (req, res) => {
   try {
-    const { jobId } = req.params;
-    const supabaseUrl = await audioService.getSupabaseDownloadUrl(jobId);
+    const { audioFileId } = req.params;
+    const downloadUrl = await audioService.getAudioDownloadUrl(audioFileId);
 
-    if (!supabaseUrl) {
+    if (!downloadUrl) {
       return res.status(404).json({
         success: false,
         error: 'file_not_found',
-        message: 'Audio file not found or expired',
+        message: 'Audio file not found',
       });
     }
 
-    // Redirect to Supabase storage URL
-    return res.redirect(302, supabaseUrl);
+    return res.json({
+      success: true,
+      data: {
+        downloadUrl,
+        expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+      },
+    });
   } catch (error: any) {
-    console.error('Download error:', error);
-    
+    console.error('Download URL error:', error);
+
     return res.status(500).json({
       success: false,
       error: 'download_failed',
@@ -128,37 +130,89 @@ router.get('/download/:jobId', async (req, res) => {
   }
 });
 
-// GET /api/extract/download-url/:jobId
-// Get direct Supabase URL for download (for API usage)
-router.get('/download-url/:jobId', async (req, res) => {
+/**
+ * GET /api/extract/user/:userId/files
+ * 
+ * Get all audio files for a user
+ */
+router.get('/user/:userId/files', validateUserRequest, async (req, res) => {
   try {
-    const { jobId } = req.params;
-    const supabaseUrl = await audioService.getSupabaseDownloadUrl(jobId);
-
-    if (!supabaseUrl) {
-      return res.status(404).json({
-        success: false,
-        error: 'file_not_found',
-        message: 'Audio file not found or expired',
-      });
-    }
+    const { userId } = req.params;
+    const files = await supabaseService.getUserAudioFiles(userId);
 
     return res.json({
       success: true,
-      data: {
-        downloadUrl: supabaseUrl,
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour from now
-      },
+      data: files,
     });
   } catch (error: any) {
-    console.error('Download URL error:', error);
-    
+    console.error('Get user files error:', error);
+
     return res.status(500).json({
       success: false,
-      error: 'download_url_failed',
+      error: 'get_files_failed',
       message: error.message,
     });
   }
 });
 
-export { router as extractAudioFromUrl }; 
+/**
+ * GET /api/extract/user/:userId/unsynced
+ * 
+ * Get unsynced audio files for desktop sync
+ */
+router.get('/user/:userId/unsynced', validateUserRequest, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const files = await supabaseService.getUnsyncedAudioFiles(userId);
+
+    return res.json({
+      success: true,
+      data: files,
+      count: files.length,
+    });
+  } catch (error: any) {
+    console.error('Get unsynced files error:', error);
+
+    return res.status(500).json({
+      success: false,
+      error: 'get_unsynced_failed',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/extract/mark-synced
+ * 
+ * Mark audio files as synced to desktop
+ */
+router.post('/mark-synced', async (req, res) => {
+  try {
+    const { audioFileIds } = req.body;
+
+    if (!Array.isArray(audioFileIds) || audioFileIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'validation_error',
+        message: 'audioFileIds must be a non-empty array',
+      });
+    }
+
+    await supabaseService.markAsSynced(audioFileIds);
+
+    return res.json({
+      success: true,
+      message: `Marked ${audioFileIds.length} files as synced`,
+    });
+  } catch (error: any) {
+    console.error('Mark synced error:', error);
+
+    return res.status(500).json({
+      success: false,
+      error: 'mark_synced_failed',
+      message: error.message,
+    });
+  }
+});
+
+export { router as extractRouter };

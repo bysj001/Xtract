@@ -1,57 +1,45 @@
-import express from 'express';
+import { Request, Response, NextFunction } from 'express';
 
-export function validateSupabaseExtractionRequest(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
+/**
+ * Validate extraction request body
+ */
+export function validateExtractionRequest(
+  req: Request,
+  res: Response,
+  next: NextFunction
 ): void {
-  const { jobId, userId, videoPath } = req.body;
+  const { jobId, userId, videoStoragePath } = req.body;
 
-  // Validate required fields for Supabase processing
+  const errors: string[] = [];
+
   if (!jobId || typeof jobId !== 'string') {
-    res.status(400).json({
-      success: false,
-      error: 'validation_error',
-      message: 'jobId is required and must be a string',
-    });
-    return;
+    errors.push('jobId is required and must be a string');
   }
 
   if (!userId || typeof userId !== 'string') {
-    res.status(400).json({
-      success: false,
-      error: 'validation_error',
-      message: 'userId is required and must be a string',
-    });
-    return;
+    errors.push('userId is required and must be a string');
   }
 
-  if (!videoPath || typeof videoPath !== 'string') {
-    res.status(400).json({
-      success: false,
-      error: 'validation_error',
-      message: 'videoPath is required and must be a string',
-    });
-    return;
+  if (!videoStoragePath || typeof videoStoragePath !== 'string') {
+    errors.push('videoStoragePath is required and must be a string');
   }
 
-  // Validate optional fields
-  const { format, quality } = req.body;
-
-  if (format && !['mp3', 'wav', 'aac', 'ogg'].includes(format)) {
-    res.status(400).json({
-      success: false,
-      error: 'validation_error',
-      message: 'format must be one of: mp3, wav, aac, ogg',
-    });
-    return;
+  // Validate UUID format for jobId and userId
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  
+  if (jobId && !uuidRegex.test(jobId)) {
+    errors.push('jobId must be a valid UUID');
   }
 
-  if (quality && !['low', 'medium', 'high'].includes(quality)) {
+  if (userId && !uuidRegex.test(userId)) {
+    errors.push('userId must be a valid UUID');
+  }
+
+  if (errors.length > 0) {
     res.status(400).json({
       success: false,
       error: 'validation_error',
-      message: 'quality must be one of: low, medium, high',
+      message: errors.join('; '),
     });
     return;
   }
@@ -59,64 +47,68 @@ export function validateSupabaseExtractionRequest(
   next();
 }
 
-export function validateExtractionRequest(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
+/**
+ * Validate job status request
+ */
+export function validateJobStatusRequest(
+  req: Request,
+  res: Response,
+  next: NextFunction
 ): void {
-  const { videoUrl, userId } = req.body;
+  const { jobId } = req.params;
 
-  // Validate required fields
-  if (!videoUrl || typeof videoUrl !== 'string') {
+  if (!jobId) {
     res.status(400).json({
       success: false,
       error: 'validation_error',
-      message: 'videoUrl is required and must be a string',
+      message: 'jobId parameter is required',
     });
     return;
   }
 
-  if (!userId || typeof userId !== 'string') {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  
+  if (!uuidRegex.test(jobId)) {
     res.status(400).json({
       success: false,
       error: 'validation_error',
-      message: 'userId is required and must be a string',
-    });
-    return;
-  }
-
-  // Validate URL format
-  try {
-    new URL(videoUrl);
-  } catch {
-    res.status(400).json({
-      success: false,
-      error: 'validation_error',
-      message: 'videoUrl must be a valid URL',
-    });
-    return;
-  }
-
-  // Validate optional fields
-  const { format, quality } = req.body;
-
-  if (format && !['mp3', 'wav', 'aac', 'ogg'].includes(format)) {
-    res.status(400).json({
-      success: false,
-      error: 'validation_error',
-      message: 'format must be one of: mp3, wav, aac, ogg',
-    });
-    return;
-  }
-
-  if (quality && !['low', 'medium', 'high'].includes(quality)) {
-    res.status(400).json({
-      success: false,
-      error: 'validation_error',
-      message: 'quality must be one of: low, medium, high',
+      message: 'jobId must be a valid UUID',
     });
     return;
   }
 
   next();
-} 
+}
+
+/**
+ * Validate user audio files request
+ */
+export function validateUserRequest(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  const { userId } = req.params;
+
+  if (!userId) {
+    res.status(400).json({
+      success: false,
+      error: 'validation_error',
+      message: 'userId parameter is required',
+    });
+    return;
+  }
+
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  
+  if (!uuidRegex.test(userId)) {
+    res.status(400).json({
+      success: false,
+      error: 'validation_error',
+      message: 'userId must be a valid UUID',
+    });
+    return;
+  }
+
+  next();
+}

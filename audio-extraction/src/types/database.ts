@@ -9,22 +9,23 @@ export interface AudioFile {
   user_id: string;
   title: string;
   filename: string;
-  source_url: string;
+  storage_path: string;
   file_url: string;
-  duration?: number;
-  file_size?: number;
+  duration: number;
+  file_size: number;
   created_at: string;
   updated_at: string;
+  synced_to_desktop: boolean;
 }
 
 export interface ProcessingJob {
   id: string;
   user_id: string;
-  video_url: string;
+  video_storage_path: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
-  source_type?: 'native_share' | 'url_input'; // New field to track processing source
   error_message?: string;
   audio_file_id?: string;
+  original_filename?: string;
   created_at: string;
   updated_at: string;
 }
@@ -44,4 +45,4 @@ export interface Database {
       };
     };
   };
-} 
+}
