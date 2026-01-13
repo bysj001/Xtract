@@ -1,25 +1,20 @@
 /**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
+ * Xtract Mobile App
+ * Extract audio from videos - no scraping, just pure file sharing
  */
 
 import React, { useEffect, useState } from 'react';
-import { StatusBar, View, Text, ActivityIndicator } from 'react-native';
+import { StatusBar, View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
-import { ManualInputScreen } from './src/screens/ManualInputScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { AudioPlayerScreen } from './src/screens/AudioPlayerScreen';
 import { RootStackParamList, User } from './src/types';
 import { AuthService } from './src/services/supabase';
-import { UrlSchemeService } from './src/services/urlScheme';
-import { SharedUrlManager } from './src/services/sharedUrlManager';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -28,7 +23,7 @@ function App(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Centralized auth state management
+    // Check initial auth state
     const checkAuthState = async () => {
       try {
         const currentUser = await AuthService.getCurrentUser();
@@ -42,30 +37,22 @@ function App(): React.JSX.Element {
 
     checkAuthState();
 
-    // Single auth state listener for the entire app
+    // Subscribe to auth state changes
     const { data: { subscription } } = AuthService.onAuthStateChange((authUser) => {
       setUser(authUser);
     });
 
-    // Initialize URL scheme handling
-    const urlSchemeSubscription = UrlSchemeService.initialize();
-    
-    // Initialize shared URL manager to catch shared URLs early
-    const sharedUrlSubscription = SharedUrlManager.initialize();
-    
     return () => {
       subscription?.unsubscribe();
-      urlSchemeSubscription?.();
-      sharedUrlSubscription?.();
     };
   }, []);
 
   if (loading) {
     return (
       <SafeAreaProvider>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" />
-          <Text>Loading...</Text>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4ECDC4" />
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </SafeAreaProvider>
     );
@@ -76,10 +63,11 @@ function App(): React.JSX.Element {
       <NavigationContainer>
         <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
         <Stack.Navigator
-          initialRouteName={user ? "Main" : "Welcome"}
+          initialRouteName={user ? 'Main' : 'Welcome'}
           screenOptions={{
             headerShown: false,
             gestureEnabled: true,
+            cardStyle: { backgroundColor: '#0f0f0f' },
           }}
         >
           {user ? (
@@ -87,9 +75,6 @@ function App(): React.JSX.Element {
             <>
               <Stack.Screen name="Main">
                 {(props) => <HomeScreen {...props} user={user} />}
-              </Stack.Screen>
-              <Stack.Screen name="ManualInput">
-                {(props) => <ManualInputScreen {...props} user={user} />}
               </Stack.Screen>
               <Stack.Screen name="Settings">
                 {(props) => <SettingsScreen {...props} user={user} />}
@@ -105,5 +90,19 @@ function App(): React.JSX.Element {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0f0f0f',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+});
 
 export default App;

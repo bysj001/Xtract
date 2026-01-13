@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { AudioService, AudioFile } from './services/supabase';
 
-// Add CSS animations
+// CSS animations
 const styles = `
   @keyframes pulse {
     0% { opacity: 0.4; transform: scaleY(0.8); }
@@ -18,6 +18,11 @@ const styles = `
     0%, 100% { box-shadow: 0 0 5px rgba(78, 205, 196, 0.5); }
     50% { box-shadow: 0 0 20px rgba(78, 205, 196, 0.8); }
   }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 `;
 
 interface CatalogProps {
@@ -29,25 +34,47 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
   const [audioElements, setAudioElements] = useState<Map<string, HTMLAudioElement>>(new Map());
+  const [newFileIds, setNewFileIds] = useState<Set<string>>(new Set());
+
+  // Load audio files
+  const loadAudioFiles = useCallback(async () => {
+    try {
+      const files = await AudioService.getUserAudioFiles(user.id);
+      setAudioFiles(files);
+    } catch (error) {
+      console.error('Error loading audio files:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user.id]);
 
   useEffect(() => {
-    const loadAudioFiles = async () => {
-      try {
-        const files = await AudioService.getUserAudioFiles(user.id);
-        setAudioFiles(files);
-      } catch (error) {
-        console.error('Error loading audio files:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (user?.id) {
       loadAudioFiles();
-    }
-  }, [user?.id]);
 
-  // Cleanup audio elements when component unmounts
+      // Subscribe to new files (realtime sync)
+      const subscription = AudioService.subscribeToNewFiles(user.id, (newFile) => {
+        console.log('📥 New audio file received:', newFile.title);
+        setAudioFiles(prev => [newFile, ...prev]);
+        setNewFileIds(prev => new Set(prev).add(newFile.id));
+        
+        // Clear "new" indicator after 5 seconds
+        setTimeout(() => {
+          setNewFileIds(prev => {
+            const next = new Set(prev);
+            next.delete(newFile.id);
+            return next;
+          });
+        }, 5000);
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+  }, [user?.id, loadAudioFiles]);
+
+  // Cleanup audio elements on unmount
   useEffect(() => {
     return () => {
       audioElements.forEach(audio => {
@@ -58,9 +85,7 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
   }, [audioElements]);
 
   const handleDragStart = (event: React.DragEvent, file: AudioFile) => {
-    // Set drag data for compatible DAWs (GarageBand, Logic, etc.)
     const downloadURL = `audio/mpeg:${file.filename}:${file.file_url}`;
-    
     event.dataTransfer.setData('text/uri-list', file.file_url);
     event.dataTransfer.setData('DownloadURL', downloadURL);
     event.dataTransfer.effectAllowed = 'copy';
@@ -77,31 +102,24 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
         }
       }
 
-      // Get or create audio element for this file
       let audio = audioElements.get(file.id);
       if (!audio) {
-        audio = new Audio(file.file_url);
+        // Get signed URL for playback
+        const signedUrl = await AudioService.getSignedUrl(file.storage_path);
+        audio = new Audio(signedUrl);
         
-        // Set up event listeners
-        audio.addEventListener('ended', () => {
-          setCurrentlyPlaying(null);
-        });
-        
+        audio.addEventListener('ended', () => setCurrentlyPlaying(null));
         audio.addEventListener('error', (e) => {
           console.error('Audio playback error:', e);
           setCurrentlyPlaying(null);
         });
-
-        // Enable CORS for cross-origin requests
         audio.crossOrigin = 'anonymous';
 
-        // Update the map
         const newAudioElements = new Map(audioElements);
         newAudioElements.set(file.id, audio);
         setAudioElements(newAudioElements);
       }
 
-      // Toggle play/pause
       if (currentlyPlaying === file.id) {
         audio.pause();
         setCurrentlyPlaying(null);
@@ -115,20 +133,9 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
     }
   };
 
-  const truncateFilename = (filename: string, maxLength: number = 25) => {
-    if (filename.length <= maxLength) return filename;
-    const ext = filename.split('.').pop();
-    const nameWithoutExt = filename.slice(0, filename.lastIndexOf('.'));
-    const truncated = nameWithoutExt.slice(0, maxLength - ext!.length - 4) + '...';
-    return `${truncated}.${ext}`;
-  };
-
   const handleExport = async (file: AudioFile) => {
     try {
-      // Download the file as a blob
-      const blob = await AudioService.downloadAudioFile(file.file_url);
-      
-      // Create a download link
+      const blob = await AudioService.downloadAudioFile(file.storage_path);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -142,6 +149,38 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
     }
   };
 
+  const handleDelete = async (file: AudioFile) => {
+    if (!window.confirm(`Delete "${file.title || file.filename}"?`)) return;
+    
+    try {
+      await AudioService.deleteAudioFile(file.id);
+      setAudioFiles(prev => prev.filter(f => f.id !== file.id));
+    } catch (error) {
+      console.error('Error deleting file:', error);
+    }
+  };
+
+  const truncateFilename = (filename: string, maxLength: number = 30) => {
+    if (filename.length <= maxLength) return filename;
+    const ext = filename.split('.').pop();
+    const nameWithoutExt = filename.slice(0, filename.lastIndexOf('.'));
+    const truncated = nameWithoutExt.slice(0, maxLength - (ext?.length || 0) - 4) + '...';
+    return `${truncated}.${ext}`;
+  };
+
+  const formatDuration = (seconds: number): string => {
+    if (!seconds || seconds <= 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  };
+
   if (loading) {
     return (
       <div style={{
@@ -149,7 +188,7 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
         justifyContent: 'center',
         alignItems: 'center',
         height: '200px',
-        color: '#888'
+        color: 'rgba(255, 255, 255, 0.6)'
       }}>
         Loading audio files...
       </div>
@@ -163,13 +202,17 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        height: '200px',
-        color: '#888',
-        textAlign: 'center'
+        height: '300px',
+        color: 'rgba(255, 255, 255, 0.6)',
+        textAlign: 'center',
+        padding: '40px'
       }}>
-        <p>No audio files found for this user</p>
-        <p style={{ fontSize: '12px', marginTop: '10px' }}>
-          Upload audio files using the mobile app or web interface
+        <div style={{ fontSize: '48px', marginBottom: '20px' }}>🎵</div>
+        <h3 style={{ margin: '0 0 10px 0', color: 'rgba(255, 255, 255, 0.8)' }}>
+          No audio files yet
+        </h3>
+        <p style={{ fontSize: '14px', maxWidth: '300px', lineHeight: '1.6' }}>
+          Share a video from Instagram to your mobile app, and extracted audio will automatically sync here!
         </p>
       </div>
     );
@@ -186,262 +229,216 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
         maxWidth: '1600px',
         margin: '0 auto'
       }}>
-      {audioFiles.map((file: AudioFile, index: number) => (
-        <div
-          key={file.id}
-          draggable={true}
-          onDragStart={(e) => handleDragStart(e, file)}
-          style={{
-            background: `
-              linear-gradient(145deg, rgba(30, 30, 30, 0.9), rgba(20, 20, 20, 0.9)),
-              radial-gradient(circle at 30% 30%, rgba(78, 205, 196, 0.1) 0%, transparent 50%),
-              radial-gradient(circle at 70% 70%, rgba(255, 107, 107, 0.1) 0%, transparent 50%)
-            `,
-            borderRadius: '20px',
-            padding: '25px',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            cursor: 'grab',
-            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: `
-              0 8px 32px rgba(0, 0, 0, 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.1)
-            `,
-            position: 'relative',
-            overflow: 'hidden',
-            backdropFilter: 'blur(10px)'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-8px) scale(1.02)';
-            e.currentTarget.style.boxShadow = `
-              0 20px 40px rgba(0, 0, 0, 0.4),
-              0 0 0 1px rgba(78, 205, 196, 0.5),
-              inset 0 1px 0 rgba(255, 255, 255, 0.2)
-            `;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = `
-              0 8px 32px rgba(0, 0, 0, 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.1)
-            `;
-          }}
-          onMouseDown={(e) => {
-            e.currentTarget.style.cursor = 'grabbing';
-          }}
-          onMouseUp={(e) => {
-            e.currentTarget.style.cursor = 'grab';
-          }}
-        >
-          {/* Background pattern */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'linear-gradient(45deg, transparent 30%, rgba(78, 205, 196, 0.03) 50%, transparent 70%)',
-            pointerEvents: 'none'
-          }} />
+        {audioFiles.map((file, index) => {
+          const isNew = newFileIds.has(file.id);
+          const isPlaying = currentlyPlaying === file.id;
           
-          {/* Waveform placeholder */}
-          <div style={{
-            height: '80px',
-            background: currentlyPlaying === file.id ? `
-              linear-gradient(135deg, 
-                rgba(255, 107, 107, 1) 0%, 
-                rgba(78, 205, 196, 1) 25%, 
-                rgba(123, 104, 238, 1) 50%, 
-                rgba(255, 183, 77, 1) 75%, 
-                rgba(72, 219, 251, 1) 100%
-              )
-            ` : `
-              linear-gradient(135deg, 
-                rgba(255, 107, 107, 0.8) 0%, 
-                rgba(78, 205, 196, 0.8) 25%, 
-                rgba(123, 104, 238, 0.8) 50%, 
-                rgba(255, 183, 77, 0.8) 75%, 
-                rgba(72, 219, 251, 0.8) 100%
-              )
-            `,
-            borderRadius: '12px',
-            marginBottom: '20px',
-            position: 'relative',
-            overflow: 'hidden',
-            boxShadow: currentlyPlaying === file.id 
-              ? 'inset 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 20px rgba(78, 205, 196, 0.4)'
-              : 'inset 0 2px 8px rgba(0, 0, 0, 0.3)',
-            transition: 'all 0.3s ease'
-          }}>
-            {/* Animated bars effect */}
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '10%',
-              right: '10%',
-              height: '60%',
-              transform: 'translateY(-50%)',
-              display: 'flex',
-              alignItems: 'end',
-              gap: '2px'
-            }}>
-              {Array.from({ length: 40 }, (_, i) => {
-                const isPlaying = currentlyPlaying === file.id;
-                const animationDuration = isPlaying ? 0.5 + Math.random() * 0.5 : 1 + Math.random();
-                const animationName = isPlaying ? 'pulse-fast' : 'pulse';
-                
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      flex: 1,
-                      height: `${20 + Math.sin(i * 0.5) * 20 + Math.random() * 20}%`,
-                      background: isPlaying 
-                        ? 'rgba(255, 255, 255, 0.8)' 
-                        : 'rgba(255, 255, 255, 0.3)',
-                      borderRadius: '1px',
-                      animationName: animationName,
-                      animationDuration: `${animationDuration}s`,
-                      animationTimingFunction: 'ease-in-out',
-                      animationIterationCount: 'infinite',
-                      animationDirection: 'alternate',
-                      animationDelay: `${i * 0.05}s`,
-                      transition: 'background 0.3s ease'
-                    }}
-                  />
-                );
-              })}
-            </div>
-            
-            {/* Overlay gradient */}
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'linear-gradient(45deg, transparent 60%, rgba(255,255,255,0.1))',
-              pointerEvents: 'none'
-            }} />
-          </div>
+          return (
+            <div
+              key={file.id}
+              draggable={true}
+              onDragStart={(e) => handleDragStart(e, file)}
+              style={{
+                background: `
+                  linear-gradient(145deg, rgba(30, 30, 30, 0.9), rgba(20, 20, 20, 0.9)),
+                  radial-gradient(circle at 30% 30%, rgba(78, 205, 196, 0.1) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 70%, rgba(255, 107, 107, 0.1) 0%, transparent 50%)
+                `,
+                borderRadius: '20px',
+                padding: '25px',
+                border: isNew 
+                  ? '2px solid rgba(78, 205, 196, 0.6)'
+                  : '1px solid rgba(255, 255, 255, 0.1)',
+                cursor: 'grab',
+                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: isNew
+                  ? '0 0 30px rgba(78, 205, 196, 0.3)'
+                  : '0 8px 32px rgba(0, 0, 0, 0.3)',
+                position: 'relative',
+                overflow: 'hidden',
+                backdropFilter: 'blur(10px)',
+                animation: isNew ? 'fadeIn 0.5s ease-out' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-8px) scale(1.02)';
+                e.currentTarget.style.boxShadow = '0 20px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(78, 205, 196, 0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.boxShadow = isNew 
+                  ? '0 0 30px rgba(78, 205, 196, 0.3)'
+                  : '0 8px 32px rgba(0, 0, 0, 0.3)';
+              }}
+            >
+              {/* New badge */}
+              {isNew && (
+                <div style={{
+                  position: 'absolute',
+                  top: '15px',
+                  right: '15px',
+                  background: 'linear-gradient(135deg, #4ecdc4, #44a08d)',
+                  color: 'white',
+                  padding: '4px 10px',
+                  borderRadius: '12px',
+                  fontSize: '10px',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}>
+                  NEW
+                </div>
+              )}
 
-          {/* File info */}
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <h3 style={{
-              margin: '0 0 8px 0',
-              fontSize: '16px',
-              fontWeight: '600',
-              color: '#fff',
-              lineHeight: '1.3'
-            }}>
-              {truncateFilename(file.filename)}
-            </h3>
-            
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginTop: '15px'
-            }}>
-              <span style={{
-                color: '#888',
-                fontSize: '12px',
-                background: 'rgba(78, 205, 196, 0.1)',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                border: '1px solid rgba(78, 205, 196, 0.2)'
+              {/* Waveform visualization */}
+              <div style={{
+                height: '80px',
+                background: isPlaying ? `
+                  linear-gradient(135deg, 
+                    rgba(255, 107, 107, 1) 0%, 
+                    rgba(78, 205, 196, 1) 25%, 
+                    rgba(123, 104, 238, 1) 50%, 
+                    rgba(255, 183, 77, 1) 75%, 
+                    rgba(72, 219, 251, 1) 100%
+                  )
+                ` : `
+                  linear-gradient(135deg, 
+                    rgba(255, 107, 107, 0.8) 0%, 
+                    rgba(78, 205, 196, 0.8) 50%, 
+                    rgba(123, 104, 238, 0.8) 100%
+                  )
+                `,
+                borderRadius: '12px',
+                marginBottom: '20px',
+                position: 'relative',
+                overflow: 'hidden',
+                boxShadow: isPlaying
+                  ? 'inset 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 20px rgba(78, 205, 196, 0.4)'
+                  : 'inset 0 2px 8px rgba(0, 0, 0, 0.3)'
               }}>
-                {file.filename.split('.').pop()?.toUpperCase() || 'AUDIO'}
-              </span>
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '10%',
+                  right: '10%',
+                  height: '60%',
+                  transform: 'translateY(-50%)',
+                  display: 'flex',
+                  alignItems: 'end',
+                  gap: '2px'
+                }}>
+                  {Array.from({ length: 40 }, (_, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        flex: 1,
+                        height: `${20 + Math.sin(i * 0.5) * 20 + Math.random() * 20}%`,
+                        background: isPlaying ? 'rgba(255, 255, 255, 0.8)' : 'rgba(255, 255, 255, 0.3)',
+                        borderRadius: '1px',
+                        animationName: isPlaying ? 'pulse-fast' : 'pulse',
+                        animationDuration: `${isPlaying ? 0.3 : 1}s`,
+                        animationTimingFunction: 'ease-in-out',
+                        animationIterationCount: 'infinite',
+                        animationDirection: 'alternate',
+                        animationDelay: `${i * 0.03}s`
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
 
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <button
-                  onClick={() => handlePlayPause(file)}
-                  style={{
-                    background: currentlyPlaying === file.id 
-                      ? 'linear-gradient(135deg, #ff6b6b, #ff8e8e)' 
-                      : 'linear-gradient(135deg, #48dbfb, #0abde3)',
-                    color: 'white',
-                    padding: '8px 12px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    boxShadow: currentlyPlaying === file.id
-                      ? '0 0 20px rgba(255, 107, 107, 0.4)'
-                      : '0 2px 8px rgba(72, 219, 251, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    minWidth: '70px',
-                    justifyContent: 'center'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.1) translateY(-2px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1) translateY(0)';
-                  }}
-                >
-                  {currentlyPlaying === file.id ? '⏸️ PAUSE' : '▶️ PLAY'}
-                </button>
+              {/* File info */}
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <h3 style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#fff',
+                  lineHeight: '1.3'
+                }}>
+                  {file.title || truncateFilename(file.filename)}
+                </h3>
 
-                <button
-                  onClick={() => handleExport(file)}
-                  style={{
-                    background: 'linear-gradient(135deg, #4ecdc4, #44a08d)',
-                    color: 'white',
-                    padding: '8px 12px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    boxShadow: '0 2px 8px rgba(78, 205, 196, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    minWidth: '80px',
-                    justifyContent: 'center'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.1) translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(78, 205, 196, 0.5)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1) translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(78, 205, 196, 0.3)';
-                  }}
-                >
-                  📥 DOWNLOAD
-                </button>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '15px',
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  fontSize: '12px'
+                }}>
+                  <span>{formatDuration(file.duration)}</span>
+                  <span>{formatFileSize(file.file_size)}</span>
+                  <span>{new Date(file.created_at).toLocaleDateString()}</span>
+                </div>
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => handlePlayPause(file)}
+                    style={{
+                      background: isPlaying
+                        ? 'linear-gradient(135deg, #ff6b6b, #ff8e8e)'
+                        : 'linear-gradient(135deg, #48dbfb, #0abde3)',
+                      color: 'white',
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      textTransform: 'uppercase',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    {isPlaying ? '⏸️ PAUSE' : '▶️ PLAY'}
+                  </button>
+
+                  <button
+                    onClick={() => handleExport(file)}
+                    style={{
+                      background: 'linear-gradient(135deg, #4ecdc4, #44a08d)',
+                      color: 'white',
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      textTransform: 'uppercase',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    📥 DOWNLOAD
+                  </button>
+
+                  <button
+                    onClick={() => handleDelete(file)}
+                    style={{
+                      background: 'rgba(255, 107, 107, 0.2)',
+                      color: '#ff6b6b',
+                      padding: '8px 12px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      textTransform: 'uppercase',
+                      border: '1px solid rgba(255, 107, 107, 0.3)',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
             </div>
-
-            {/* File size info */}
-            <div style={{
-              marginTop: '10px',
-              color: 'rgba(255, 255, 255, 0.5)',
-              fontSize: '11px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <span>{(file.file_size / (1024 * 1024)).toFixed(1)} MB</span>
-              <span>{new Date(file.created_at).toLocaleDateString()}</span>
-            </div>
-          </div>
-        </div>
-      ))}
+          );
+        })}
       </div>
     </>
   );
 };
 
-export default Catalog; 
+export default Catalog;

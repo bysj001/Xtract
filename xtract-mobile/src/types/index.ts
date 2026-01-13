@@ -9,37 +9,38 @@ export interface AudioFile {
   user_id: string;
   title: string;
   filename: string;
-  source_url: string;
+  storage_path: string;
   file_url: string;
-  duration?: number;
-  file_size?: number;
+  duration: number;
+  file_size: number;
   created_at: string;
   updated_at: string;
-}
-
-export interface ShareData {
-  type: 'text' | 'url';
-  data: string;
+  synced_to_desktop: boolean;
 }
 
 export interface ProcessingJob {
   id: string;
   user_id: string;
-  video_url: string;
+  video_storage_path: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
-  source_type?: 'native_share' | 'url_input'; // Track processing source
   error_message?: string;
   audio_file_id?: string;
+  original_filename?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface VideoFileData {
+  uri: string;
+  type: string;
+  name: string;
+  size?: number;
 }
 
 export type RootStackParamList = {
   Welcome: undefined;
   Main: undefined;
   Home: { user: User };
-  ManualInput: { user: User };
   Settings: { user: User };
   AudioPlayer: { file: AudioFile };
-  Processing: { url: string };
-}; 
+};

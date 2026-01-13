@@ -1,18 +1,20 @@
 import ShareMenu from 'react-native-share-menu';
-import { isValidVideoUrl, extractVideoUrl } from '../utils/videoUtils';
+import { VideoFileData } from '../types';
 
 export interface ShareData {
   mimeType: string;
   data: string;
+  extraData?: any;
 }
 
-export interface VideoFileData {
-  uri: string;
-  type: string;
-  name?: string;
-}
-
+/**
+ * Service for handling shared content from other apps
+ * ONLY accepts video files - no URL processing
+ */
 export class ShareMenuService {
+  /**
+   * Get shared data from the share menu
+   */
   static async getSharedData(): Promise<ShareData | null> {
     try {
       const data = await ShareMenu.getSharedData();
@@ -23,21 +25,50 @@ export class ShareMenuService {
     }
   }
 
-  // Check if shared data is a video file (new approach - no rate limiting!)
+  /**
+   * Check if the shared data is a video file
+   */
   static isVideoFile(sharedData: ShareData): boolean {
-    return sharedData.mimeType.startsWith('video/');
+    const mimeType = sharedData.mimeType?.toLowerCase() || '';
+    return (
+      mimeType.startsWith('video/') ||
+      mimeType === 'public.movie' ||
+      mimeType === 'com.apple.quicktime-movie'
+    );
   }
 
-  // Extract video file information from shared data
+  /**
+   * Extract video file information from shared data
+   */
   static getVideoFileData(sharedData: ShareData): VideoFileData | null {
-    if (!this.isVideoFile(sharedData)) return null;
-    
+    if (!this.isVideoFile(sharedData)) {
+      return null;
+    }
+
     try {
-      // For video files, data will be a file URI
+      // For video files, data contains the file URI
+      const uri = sharedData.data;
+      if (!uri) {
+        console.error('No video URI in shared data');
+        return null;
+      }
+
+      // Extract filename from URI or generate one
+      let filename = 'shared_video.mp4';
+      try {
+        const uriParts = uri.split('/');
+        const lastPart = uriParts[uriParts.length - 1];
+        if (lastPart && lastPart.includes('.')) {
+          filename = decodeURIComponent(lastPart);
+        }
+      } catch (e) {
+        // Use default filename
+      }
+
       return {
-        uri: sharedData.data,
-        type: sharedData.mimeType,
-        name: `shared_video_${Date.now()}.mp4`
+        uri,
+        type: sharedData.mimeType || 'video/mp4',
+        name: filename,
       };
     } catch (error) {
       console.error('Error parsing video file data:', error);
@@ -45,44 +76,49 @@ export class ShareMenuService {
     }
   }
 
-  // Generic video URL validation - supports any video platform
-  static isValidVideoUrl(url: string): boolean {
-    return isValidVideoUrl(url);
-  }
-
-  static extractVideoUrl(text: string): string | null {
-    return extractVideoUrl(text);
-  }
-
-  static async processSharedContent(): Promise<{ type: 'videoFile' | 'url', data: VideoFileData | string } | null> {
+  /**
+   * Process shared content - ONLY accepts video files
+   * Returns null if content is not a video file
+   */
+  static async processSharedContent(): Promise<VideoFileData | null> {
     const sharedData = await this.getSharedData();
-    if (!sharedData) return null;
     
-    // Priority 1: Check if it's a video file (avoids rate limiting!)
+    if (!sharedData) {
+      console.log('❌ No shared data received');
+      return null;
+    }
+
+    console.log(`📱 Received shared content:`);
+    console.log(`   Type: ${sharedData.mimeType}`);
+    console.log(`   Data: ${sharedData.data?.substring(0, 100)}...`);
+
+    // Only accept video files
     if (this.isVideoFile(sharedData)) {
-      const videoFileData = this.getVideoFileData(sharedData);
-      if (videoFileData) {
-        console.log('📹 Received video file via native sharing - no Instagram API calls needed!');
-        return { type: 'videoFile', data: videoFileData };
+      const videoData = this.getVideoFileData(sharedData);
+      if (videoData) {
+        console.log('📹 ✅ Valid video file received');
+        console.log(`   Name: ${videoData.name}`);
+        return videoData;
       }
     }
-    
-    // Priority 2: Fallback to URL extraction (existing approach)
-    const extractedUrl = this.extractVideoUrl(sharedData.data);
-    if (extractedUrl && this.isValidVideoUrl(extractedUrl)) {
-      console.log('🔗 Received video URL - will use API approach');
-      return { type: 'url', data: extractedUrl };
-    }
+
+    console.log('❌ Shared content is not a video file');
+    console.log('💡 To extract audio from Instagram:');
+    console.log('   1. Download the video to your device first');
+    console.log('   2. Share the saved video file with Xtract');
     
     return null;
   }
 
-  // Legacy method for backward compatibility
-  static async processSharedUrl(): Promise<string | null> {
-    const result = await this.processSharedContent();
-    if (result && result.type === 'url') {
-      return result.data as string;
+  /**
+   * Clear any pending shared data
+   */
+  static async clearSharedData(): Promise<void> {
+    try {
+      // Some implementations of react-native-share-menu support clearing
+      // If not available, this is a no-op
+    } catch (error) {
+      // Ignore
     }
-    return null;
   }
-} 
+}

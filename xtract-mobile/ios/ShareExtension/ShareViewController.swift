@@ -2,7 +2,7 @@
 //  ShareViewController.swift
 //  ShareExtension
 //
-//  Created by Seung Jae You on 6/22/25.
+//  Handles video file sharing from other apps
 //
 
 import UIKit
@@ -13,71 +13,132 @@ import UniformTypeIdentifiers
 class ShareViewController: SLComposeServiceViewController {
 
     override func isContentValid() -> Bool {
-        // Do validation of contentText and/or NSExtensionContext attachments here
         return true
     }
 
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        handleSharedContent()
+    }
+
     override func didSelectPost() {
-        if let content = contentText {
-            let url = extractVideoURL(from: content)
-            if let videoURL = url {
-                // For now, just open the main app with URL scheme
-                // App Groups can be added later once signing is fixed
-                openMainApp(with: videoURL)
-            }
-        }
-        
-        // Inform the host that we're done, so it un-blocks its UI. Note: Alternatively you could call super's -didSelectPost, which will similarly complete the extension context.
-        self.extensionContext!.completeRequest(returningItems: [], completionHandler: nil)
+        self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
     }
 
     override func configurationItems() -> [Any]! {
-        // To add configuration options via table cells at the bottom of the sheet, return an array of SLComposeSheetConfigurationItem here.
         return []
     }
     
-    private func extractVideoURL(from text: String) -> String? {
-        // Generic patterns that match common video URL structures without targeting specific platforms
-        let patterns = [
-            // Generic patterns for video content (posts, reels, videos, etc.)
-            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*[pP]/[a-zA-Z0-9_-]+", // Posts with /p/ pattern
-            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*[rR]eel[sS]?/[a-zA-Z0-9_-]+", // Reels pattern
-            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*[vV]ideo/[a-zA-Z0-9_-]+", // Video paths  
-            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*[wW]atch\\?.*[vV]=[a-zA-Z0-9_-]+", // Watch with video ID
-            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*[sS]horts/[a-zA-Z0-9_-]+", // Short-form videos
-            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9._/-]*@[a-zA-Z0-9._-]+/[a-zA-Z0-9_-]+", // User content paths
-            "https?://[a-zA-Z0-9.-]+/[a-zA-Z0-9_-]+", // Short URLs (like vm.platform.com/xyz)
-        ]
+    private func handleSharedContent() {
+        guard let extensionItems = extensionContext?.inputItems as? [NSExtensionItem] else {
+            self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+            return
+        }
         
-        for pattern in patterns {
-            let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)
-            let range = NSRange(location: 0, length: text.utf16.count)
-            if let match = regex?.firstMatch(in: text, options: [], range: range) {
-                if let swiftRange = Range(match.range, in: text) {
-                    return String(text[swiftRange])
+        for extensionItem in extensionItems {
+            if let itemProviders = extensionItem.attachments {
+                for itemProvider in itemProviders {
+                    // Check for video content
+                    if itemProvider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
+                        handleVideoItem(itemProvider)
+                        return
+                    } else if itemProvider.hasItemConformingToTypeIdentifier(UTType.video.identifier) {
+                        handleVideoItem(itemProvider)
+                        return
+                    } else if itemProvider.hasItemConformingToTypeIdentifier("public.movie") {
+                        handleVideoItem(itemProvider)
+                        return
+                    }
                 }
             }
         }
         
-        return nil
+        // No video found - show error
+        showAlert(title: "Unsupported Content", message: "Please share a video file to extract audio.")
     }
     
-    private func openMainApp(with url: String) {
-        let urlScheme = "xtract://share?url=\(url.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
-        if let appURL = URL(string: urlScheme) {
-            var responder: UIResponder? = self
-            while responder != nil {
-                if let application = responder as? UIApplication {
-                    application.open(appURL, options: [:], completionHandler: nil)
-                    break
+    private func handleVideoItem(_ itemProvider: NSItemProvider) {
+        let typeIdentifiers = [
+            UTType.movie.identifier,
+            UTType.video.identifier,
+            "public.movie",
+            "com.apple.quicktime-movie"
+        ]
+        
+        for typeIdentifier in typeIdentifiers {
+            if itemProvider.hasItemConformingToTypeIdentifier(typeIdentifier) {
+                itemProvider.loadItem(forTypeIdentifier: typeIdentifier, options: nil) { [weak self] (item, error) in
+                    DispatchQueue.main.async {
+                        if let error = error {
+                            self?.showAlert(title: "Error", message: "Failed to load video: \(error.localizedDescription)")
+                            return
+                        }
+                        
+                        if let url = item as? URL {
+                            self?.openMainAppWithVideo(url: url)
+                        } else if let data = item as? Data {
+                            // Save data to temp file and open
+                            self?.saveAndOpenVideo(data: data)
+                        } else {
+                            self?.showAlert(title: "Error", message: "Could not process video file")
+                        }
+                    }
                 }
-                responder = responder?.next
-            }
-            
-            // Fallback method for iOS 14+
-            if #available(iOS 14.0, *) {
-                self.extensionContext?.open(appURL, completionHandler: nil)
+                return
             }
         }
+    }
+    
+    private func saveAndOpenVideo(data: Data) {
+        let tempDir = FileManager.default.temporaryDirectory
+        let filename = "shared_video_\(Date().timeIntervalSince1970).mp4"
+        let fileURL = tempDir.appendingPathComponent(filename)
+        
+        do {
+            try data.write(to: fileURL)
+            openMainAppWithVideo(url: fileURL)
+        } catch {
+            showAlert(title: "Error", message: "Failed to save video: \(error.localizedDescription)")
+        }
+    }
+    
+    private func openMainAppWithVideo(url: URL) {
+        // Create URL scheme to open main app with video file path
+        let encodedPath = url.absoluteString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let appURLString = "xtract://share-video?path=\(encodedPath)"
+        
+        if let appURL = URL(string: appURLString) {
+            // Try to open the main app
+            openURL(appURL)
+        }
+        
+        // Complete the extension
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+        }
+    }
+    
+    private func openURL(_ url: URL) {
+        var responder: UIResponder? = self
+        while responder != nil {
+            if let application = responder as? UIApplication {
+                application.open(url, options: [:], completionHandler: nil)
+                return
+            }
+            responder = responder?.next
+        }
+        
+        // Fallback for iOS 14+
+        if #available(iOS 14.0, *) {
+            self.extensionContext?.open(url, completionHandler: nil)
+        }
+    }
+    
+    private func showAlert(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+            self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+        })
+        present(alert, animated: true)
     }
 }

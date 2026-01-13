@@ -1,8 +1,11 @@
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 
-// Using the same Supabase project as your mobile app
+// Supabase configuration - same project as mobile app
 const SUPABASE_URL = 'https://wgskngtfekehqpnbbanz.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnc2tuZ3RmZWtlaHFwbmJiYW56Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2MjI2ODIsImV4cCI6MjA2NjE5ODY4Mn0.iBKnwjDDPaoKI1-kTPdEEKMu3ZPskq95NaxQym4LmRw';
+
+// Storage bucket
+const AUDIO_BUCKET = 'audio-files';
 
 export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -16,33 +19,26 @@ export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON
 export interface AudioFile {
   id: string;
   user_id: string;
+  title: string;
   filename: string;
+  storage_path: string;
   file_url: string;
   file_size: number;
-  duration?: number;
+  duration: number;
   created_at: string;
   updated_at: string;
+  synced_to_desktop: boolean;
 }
 
-export interface ProcessingJob {
-  id: string;
-  user_id: string;
-  original_url: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  result_audio_file_id?: string;
-  error_message?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// Authentication Service
+// ============================================
+// AUTHENTICATION SERVICE
+// ============================================
 export class AuthService {
   static async signUp(email: string, password: string) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
-    
     if (error) throw error;
     return data;
   }
@@ -52,7 +48,6 @@ export class AuthService {
       email,
       password,
     });
-    
     if (error) throw error;
     return data;
   }
@@ -79,45 +74,13 @@ export class AuthService {
   }
 }
 
-// Audio File Service
+// ============================================
+// AUDIO FILE SERVICE
+// ============================================
 export class AudioService {
-  static async uploadAudioFile(file: File, userId: string): Promise<AudioFile> {
-    try {
-      // Upload file to Supabase Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${userId}/${Date.now()}.${fileExt}`;
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('audio-files')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('audio-files')
-        .getPublicUrl(fileName);
-
-      // Save file metadata to database
-      const { data, error } = await supabase
-        .from('audio_files')
-        .insert({
-          user_id: userId,
-          filename: file.name,
-          file_url: publicUrl,
-          file_size: file.size,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Upload error:', error);
-      throw error;
-    }
-  }
-
+  /**
+   * Get all audio files for a user
+   */
   static async getUserAudioFiles(userId: string): Promise<AudioFile[]> {
     const { data, error } = await supabase
       .from('audio_files')
@@ -129,46 +92,105 @@ export class AudioService {
     return data || [];
   }
 
-  static async deleteAudioFile(id: string): Promise<void> {
-    try {
-      // Get file info first
-      const { data: audioFile, error: fetchError } = await supabase
-        .from('audio_files')
-        .select('file_url')
-        .eq('id', id)
-        .single();
+  /**
+   * Get unsynced audio files (new files from mobile)
+   */
+  static async getUnsyncedFiles(userId: string): Promise<AudioFile[]> {
+    const { data, error } = await supabase
+      .from('audio_files')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('synced_to_desktop', false)
+      .order('created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
-
-      // Delete from storage
-      if (audioFile.file_url) {
-        const fileName = audioFile.file_url.split('/').pop();
-        if (fileName) {
-          await supabase.storage
-            .from('audio-files')
-            .remove([fileName]);
-        }
-      }
-
-      // Delete from database
-      const { error } = await supabase
-        .from('audio_files')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Delete error:', error);
-      throw error;
-    }
+    if (error) throw error;
+    return data || [];
   }
 
-  static async downloadAudioFile(fileUrl: string): Promise<Blob> {
-    const response = await fetch(fileUrl);
-    if (!response.ok) throw new Error('Failed to download file');
-    return response.blob();
+  /**
+   * Mark files as synced to desktop
+   */
+  static async markAsSynced(audioFileIds: string[]): Promise<void> {
+    const { error } = await supabase
+      .from('audio_files')
+      .update({ 
+        synced_to_desktop: true,
+        updated_at: new Date().toISOString()
+      })
+      .in('id', audioFileIds);
+
+    if (error) throw error;
+  }
+
+  /**
+   * Get signed download URL for an audio file
+   */
+  static async getSignedUrl(storagePath: string): Promise<string> {
+    const { data, error } = await supabase.storage
+      .from(AUDIO_BUCKET)
+      .createSignedUrl(storagePath, 3600); // 1 hour
+
+    if (error) throw error;
+    return data.signedUrl;
+  }
+
+  /**
+   * Download audio file as blob
+   */
+  static async downloadAudioFile(storagePath: string): Promise<Blob> {
+    const { data, error } = await supabase.storage
+      .from(AUDIO_BUCKET)
+      .download(storagePath);
+
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Delete an audio file (storage + database)
+   */
+  static async deleteAudioFile(id: string): Promise<void> {
+    // Get file info first
+    const { data: audioFile, error: fetchError } = await supabase
+      .from('audio_files')
+      .select('storage_path')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // Delete from storage
+    if (audioFile?.storage_path) {
+      await supabase.storage
+        .from(AUDIO_BUCKET)
+        .remove([audioFile.storage_path]);
+    }
+
+    // Delete from database
+    const { error } = await supabase
+      .from('audio_files')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
+  /**
+   * Subscribe to new audio files (realtime)
+   */
+  static subscribeToNewFiles(userId: string, callback: (file: AudioFile) => void) {
+    return supabase
+      .channel(`audio_files_${userId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'audio_files',
+        filter: `user_id=eq.${userId}`,
+      }, (payload) => {
+        callback(payload.new as AudioFile);
+      })
+      .subscribe();
   }
 }
 
-// Export the supabase client for direct use if needed
-export default supabase; 
+export default supabase;

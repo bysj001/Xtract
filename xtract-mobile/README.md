@@ -1,97 +1,190 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Xtract Mobile App v2.0
 
-# Getting Started
+A React Native app for iOS and Android that extracts audio from video files. Simply share a video file with the app to automatically extract and save the audio.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Features
 
-## Step 1: Start Metro
+- **Video file sharing**: Share any video file to extract audio
+- **High-quality extraction**: 320kbps MP3 output
+- **Real-time sync**: Audio automatically appears on desktop
+- **Audio playback**: Built-in audio player
+- **Secure auth**: Supabase authentication
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## How It Works
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+1. **Save video to device**: Download/save the video you want to extract audio from
+2. **Share with Xtract**: Use your device's share sheet to share the video file
+3. **Automatic processing**: Video is uploaded and audio is extracted
+4. **Sync to desktop**: Audio automatically syncs to the desktop app
 
-```sh
-# Using npm
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Mobile App                            │
+├─────────────────────────────────────────────────────────────┤
+│  1. User shares video file via Share Sheet                  │
+│  2. Video uploaded to Supabase Storage                      │
+│  3. Processing job created in database                      │
+│  4. Railway backend triggered for extraction                │
+│  5. Real-time updates via Supabase subscriptions            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- React Native CLI
+- Xcode (for iOS)
+- Android Studio (for Android)
+- CocoaPods (for iOS)
+
+### Installation
+
+```bash
+# Install dependencies
+npm install
+
+# iOS: Install pods
+cd ios && bundle install && bundle exec pod install && cd ..
+
+# Apply patches
+npm run postinstall
+```
+
+### Development
+
+```bash
+# Start Metro bundler
 npm start
 
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
+# Run on iOS
 npm run ios
 
-# OR using Yarn
-yarn ios
+# Run on Android
+npm run android
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+### Building for Production
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+#### iOS
 
-## Step 3: Modify your app
+```bash
+# Open in Xcode
+open ios/XtractMobile.xcworkspace
 
-Now that you have successfully run the app, let's make changes!
+# Select target device and build
+# Or use Xcode Cloud for CI/CD
+```
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+#### Android
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+```bash
+# Generate release APK
+cd android
+./gradlew assembleRelease
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+# Or generate AAB for Play Store
+./gradlew bundleRelease
+```
 
-## Congratulations! :tada:
+## Project Structure
 
-You've successfully run and modified your React Native App. :partying_face:
+```
+xtract-mobile/
+├── App.tsx                 # Main app component
+├── src/
+│   ├── components/         # Reusable UI components
+│   ├── screens/            # App screens
+│   │   ├── HomeScreen.tsx  # Main audio library
+│   │   ├── WelcomeScreen.tsx
+│   │   ├── SettingsScreen.tsx
+│   │   └── AudioPlayerScreen.tsx
+│   ├── services/
+│   │   ├── supabase.ts     # Supabase client & services
+│   │   └── shareMenu.ts    # Share sheet handling
+│   ├── styles/             # Shared styles
+│   └── types/              # TypeScript types
+├── ios/
+│   ├── ShareExtension/     # iOS Share Extension
+│   └── XtractMobile/       # Main iOS app
+└── android/                # Android project
+```
 
-### Now what?
+## iOS Share Extension
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+The app includes a Share Extension for receiving video files. It handles:
 
-# Troubleshooting
+- `public.movie` - Standard movie files
+- `com.apple.quicktime-movie` - QuickTime movies
+- `video/*` - Any video MIME type
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+Configure in Xcode:
+1. Select ShareExtension target
+2. Update App Groups if needed
+3. Configure URL schemes
 
-# Learn More
+## Configuration
 
-To learn more about React Native, take a look at the following resources:
+### Supabase
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+Update `src/services/supabase.ts` with your credentials:
+
+```typescript
+const SUPABASE_URL = 'your-project-url';
+const SUPABASE_ANON_KEY = 'your-anon-key';
+const RAILWAY_BACKEND_URL = 'your-railway-url';
+```
+
+### URL Scheme
+
+The app uses `xtract://` URL scheme:
+
+- `xtract://share-video?path=...` - Open app with video file
+
+## Dependencies
+
+### Core
+- `react-native` - Cross-platform mobile framework
+- `@supabase/supabase-js` - Supabase client
+- `react-native-share-menu` - Share sheet handling
+
+### Navigation
+- `@react-navigation/native` - Navigation container
+- `@react-navigation/stack` - Stack navigator
+
+### UI
+- `react-native-linear-gradient` - Gradient backgrounds
+- `react-native-safe-area-context` - Safe area handling
+
+## Troubleshooting
+
+### iOS Build Issues
+
+```bash
+# Clean build
+cd ios && rm -rf build Pods Podfile.lock && bundle exec pod install && cd ..
+```
+
+### Android Build Issues
+
+```bash
+# Clean build
+cd android && ./gradlew clean && cd ..
+```
+
+### Metro Bundler Issues
+
+```bash
+# Reset cache
+npm start -- --reset-cache
+```
+
+## Security
+
+- **No URL scraping**: Only accepts video files, not URLs
+- **No Instagram API**: Completely bypasses rate limits
+- **Secure storage**: Videos uploaded to private Supabase bucket
+- **Auth required**: All operations require authentication
