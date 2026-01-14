@@ -1,4 +1,8 @@
 /// <reference types="node" />
+import dotenv from 'dotenv';
+
+// Load environment variables FIRST before anything else
+dotenv.config();
 
 export interface EnvironmentConfig {
   NODE_ENV: 'development' | 'production' | 'test';
@@ -55,4 +59,5 @@ export function validateEnvironment(): EnvironmentConfig {
   return config;
 }
 
+// Export validated config (dotenv is loaded above before this runs)
 export const config = validateEnvironment();

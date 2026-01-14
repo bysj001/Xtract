@@ -1,15 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { setupRoutes } from './routes';
 import { setupCleanupJob } from './services/cleanup';
-import { validateEnvironment } from './config/environment';
+import { config } from './config/environment';
 
-// Load environment variables
-dotenv.config();
-
-// Validate environment before starting
-const config = validateEnvironment();
+// Config is already validated in environment.ts (dotenv loaded there too)
 
 const app = express();
 
