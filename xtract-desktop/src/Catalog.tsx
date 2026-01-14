@@ -393,7 +393,7 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
                       gap: '4px'
                     }}
                   >
-                    {isPlaying ? '⏸️ PAUSE' : '▶️ PLAY'}
+                    {isPlaying ? 'PAUSE' : 'PLAY'}
                   </button>
 
                   <button
@@ -411,7 +411,7 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
                       transition: 'all 0.3s ease'
                     }}
                   >
-                    📥 DOWNLOAD
+                    DOWNLOAD
                   </button>
 
                   <button
