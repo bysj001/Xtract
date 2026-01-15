@@ -15,8 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SettingsIcon, PlayIcon } from '../components';
 import { colors, transparentColors } from '../styles/colors';
 import { AudioService, VideoProcessingService, ProcessingService } from '../services/supabase';
-import { ShareMenuService } from '../services/shareMenu';
 import { AudioFile, ProcessingJob, VideoFileData } from '../types';
+import { useSharedVideo } from '../../App';
 
 interface HomeScreenProps {
   navigation: any;
@@ -29,11 +29,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Get shared video from context (set by App.tsx when share is received)
+  const { sharedVideo, clearSharedVideo } = useSharedVideo();
 
+  // Load data on mount
   useEffect(() => {
     loadData();
-    checkForSharedVideo();
   }, []);
+
+  // Handle shared video when it arrives
+  useEffect(() => {
+    if (sharedVideo && !isProcessing) {
+      console.log('📹 Shared video detected in HomeScreen:', sharedVideo.name);
+      processVideo(sharedVideo);
+      clearSharedVideo(); // Clear so it doesn't process again
+    }
+  }, [sharedVideo, isProcessing, clearSharedVideo]);
 
   const loadData = async () => {
     setLoading(true);
@@ -63,20 +75,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, user }) => {
       setProcessingJobs(activeJobs);
     } catch (error) {
       console.error('Error loading processing jobs:', error);
-    }
-  };
-
-  const checkForSharedVideo = async () => {
-    try {
-      console.log('🔍 Checking for shared video...');
-      const videoData = await ShareMenuService.processSharedContent();
-      
-      if (videoData) {
-        console.log('📹 Found shared video!');
-        await processVideo(videoData);
-      }
-    } catch (error) {
-      console.error('Error checking for shared video:', error);
     }
   };
 

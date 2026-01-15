@@ -1,14 +1,28 @@
 declare module 'react-native-share-menu' {
-  interface SharedData {
+  export interface SharedItem {
     mimeType: string;
     data: string;
+    extraData?: any;
   }
 
-  interface ShareMenu {
-    getSharedData(): Promise<SharedData | null>;
-    clearSharedData(): void;
+  export type ShareCallback = (item: SharedItem | null) => void;
+
+  interface ShareMenuStatic {
+    /** @deprecated Use getInitialShare instead */
+    getSharedText(callback: ShareCallback): void;
+    getInitialShare(callback: ShareCallback): void;
+    addNewShareListener(callback: ShareCallback): { remove: () => void };
   }
 
-  const ShareMenu: ShareMenu;
+  export interface ShareMenuReactViewStatic {
+    dismissExtension(error?: string | null): void;
+    openApp(): void;
+    continueInApp(extraData?: any): void;
+    data(): Promise<SharedItem | null>;
+  }
+
+  export const ShareMenuReactView: ShareMenuReactViewStatic;
+
+  const ShareMenu: ShareMenuStatic;
   export default ShareMenu;
 } 

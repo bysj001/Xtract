@@ -1,4 +1,4 @@
-import ShareMenu from 'react-native-share-menu';
+import ShareMenu, { SharedItem } from 'react-native-share-menu';
 import { VideoFileData } from '../types';
 
 export interface ShareData {
@@ -15,14 +15,17 @@ export class ShareMenuService {
   /**
    * Get shared data from the share menu
    */
-  static async getSharedData(): Promise<ShareData | null> {
-    try {
-      const data = await ShareMenu.getSharedData();
-      return data || null;
-    } catch (error) {
-      console.warn('ShareMenu not available:', error);
-      return null;
-    }
+  static getSharedData(): Promise<ShareData | null> {
+    return new Promise((resolve) => {
+      try {
+        ShareMenu.getInitialShare((item: SharedItem | null) => {
+          resolve(item || null);
+        });
+      } catch (error) {
+        console.warn('ShareMenu not available:', error);
+        resolve(null);
+      }
+    });
   }
 
   /**

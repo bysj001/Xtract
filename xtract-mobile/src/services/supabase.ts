@@ -8,7 +8,7 @@ const SUPABASE_URL = 'https://wgskngtfekehqpnbbanz.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnc2tuZ3RmZWtlaHFwbmJiYW56Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2MjI2ODIsImV4cCI6MjA2NjE5ODY4Mn0.iBKnwjDDPaoKI1-kTPdEEKMu3ZPskq95NaxQym4LmRw';
 
 // Railway backend URL for audio extraction
-const RAILWAY_BACKEND_URL = 'https://audio-extraction-production-8a74.up.railway.app';
+const RAILWAY_BACKEND_URL = 'https://xtract-production.up.railway.app';
 
 // Storage bucket names
 const STORAGE_BUCKETS = {
@@ -178,41 +178,50 @@ export class VideoProcessingService {
     console.log(`📊 Type: ${videoFile.type}`);
 
     try {
-      // Step 1: Read video file from local URI
-      console.log('📖 Reading video file...');
-      const response = await fetch(videoFile.uri);
-      if (!response.ok) {
-        throw new Error(`Failed to read video file: ${response.statusText}`);
+      // Step 1: Get auth session for upload
+      console.log('🔐 Getting auth session...');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Not authenticated. Please log in again.');
       }
 
-      const blob = await response.blob();
-      const arrayBuffer = await blob.arrayBuffer();
-      console.log(`📊 Video size: ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
-
-      // Validate file size (max 300MB)
-      const maxSize = 300 * 1024 * 1024;
-      if (arrayBuffer.byteLength > maxSize) {
-        throw new Error('Video file is too large. Maximum size is 300MB.');
-      }
-
-      // Step 2: Generate storage path and upload to Supabase
+      // Step 2: Generate storage path
       const timestamp = Date.now();
       const sanitizedName = videoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const storagePath = `${userId}/${timestamp}_${sanitizedName}`;
       
       console.log(`☁️ Uploading to Supabase: ${storagePath}`);
+      console.log(`📍 Source URI: ${videoFile.uri}`);
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from(STORAGE_BUCKETS.VIDEOS)
-        .upload(storagePath, arrayBuffer, {
-          contentType: videoFile.type || 'video/mp4',
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (uploadError) {
-        throw new Error(`Upload failed: ${uploadError.message}`);
+      // Step 3: Use FormData with the file URI directly (React Native style)
+      const formData = new FormData();
+      formData.append('file', {
+        uri: videoFile.uri,
+        name: sanitizedName,
+        type: videoFile.type || 'video/mp4',
+      } as any);
+      
+      // Upload directly to Supabase Storage REST API
+      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKETS.VIDEOS}/${storagePath}`;
+      console.log(`📤 Upload URL: ${uploadUrl}`);
+      
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'x-upsert': 'false',
+        },
+        body: formData,
+      });
+      
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error('❌ Upload response:', uploadResponse.status, errorText);
+        throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
       }
+      
+      const uploadData = await uploadResponse.json();
+      console.log('✅ Upload response:', uploadData);
 
       console.log('✅ Video uploaded successfully');
 

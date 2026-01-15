@@ -31,6 +31,34 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     return true
   }
+  
+  // Handle URL scheme from Share Extension
+  func application(
+    _ app: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    // Check if this is a share-video URL from our share extension
+    if url.scheme == "xtract" && url.host == "share-video" {
+      // Extract the video path from the query parameter
+      if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+         let pathItem = components.queryItems?.first(where: { $0.name == "path" }),
+         let videoPath = pathItem.value?.removingPercentEncoding {
+        // Store the video path in shared UserDefaults for the React Native layer
+        let sharedDefaults = UserDefaults(suiteName: "group.com.xtract.mobile")
+        sharedDefaults?.set(videoPath, forKey: "sharedVideoPath")
+        sharedDefaults?.set(Date().timeIntervalSince1970, forKey: "sharedVideoTimestamp")
+        sharedDefaults?.synchronize()
+        
+        // Post a notification that React Native can listen to
+        NotificationCenter.default.post(name: NSNotification.Name("SharedVideoReceived"), object: nil, userInfo: ["path": videoPath])
+        
+        return true
+      }
+    }
+    
+    return false
+  }
 }
 
 class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
